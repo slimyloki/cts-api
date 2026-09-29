@@ -1,7 +1,8 @@
-# Reference: state files (`alarms_state.json`, `csv_state.json`, `mm_token.json`, `outbox.sqlite`)
+# Reference: state files (`alarms_state.json`, `csv_state.json`, `mm_token.json`, `mm_auth_failed.json`, `names.json`, `outbox.sqlite`)
 
-Line references are to `main.py` v2.1.0. All four files live on the CTS server in the working folder
-(`C:\priorityalarmsapi`) and are **not** in git (runtime data stays on the CTS server,
+Line references are to `main.py` v2.1.0 unless a section says otherwise. All these files live on the CTS server in the
+bot's folder, **`C:\cts-api\cts-alarms`** since 2026-09-29 (the bot runs in place, ADR-0024; before that
+`C:\priorityalarmsapi`), and are **not** in git (runtime data stays on the CTS server,
 [ADR-0022](../adr/0022-cts-side-only-repo-web-app-in-digibuild.md)); the counts and examples below come from the
 copy of 2026-09-28 that was archived privately on the VPS for the historical import.
 
@@ -20,7 +21,7 @@ Related: [alr-file-format.md](alr-file-format.md) · [csv-audit-format.md](csv-a
 
 | Aspect | Behaviour | Code |
 |---|---|---|
-| Path | `config.json -> paths.state_file` = `C:\priorityalarmsapi\alarms_state.json`; `paths.csv_state_file` = `C:\priorityalarmsapi\csv_state.json` | `main.py:992`, `main.py:1048` |
+| Path | `config.json -> paths.state_file` = `alarms_state.json`; `paths.csv_state_file` = `csv_state.json` — relative, so next to `config.json`: `C:\cts-api\cts-alarms\…` (v2.1.1; before that absolute paths in `C:\priorityalarmsapi`) | `main.py:992`, `main.py:1048` |
 | Format | JSON, UTF-8, `indent=2`, `ensure_ascii=False` (Danish text stored readably) | `save_state()` `main.py:324`, `save_csv_state()` `main.py:486` |
 | Atomic write | write to `<path>.tmp`, then `os.replace(tmp, path)` — a crash mid-write leaves the old file intact; a stray `.tmp` may remain | same |
 | Missing file | treated as empty state; **no error** | `load_state()` `main.py:312`, `load_csv_state()` `main.py:478` |
