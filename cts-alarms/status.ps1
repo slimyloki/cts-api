@@ -6,12 +6,12 @@
 .DESCRIPTION
     Double-click status.cmd next to this file. Nothing is changed. No secret is
     shown: for secrets.json it only says whether a username and password are set
-    and whether other users could read the file.
+    and whether other Windows users can read it (shown, not a problem).
 #>
 [CmdletBinding()]
 param(
-    [string]$TaskPath  = "\TACVistaLogs\",
-    [string]$TaskName  = "TACVista_Alarm_Bot",
+    [string]$TaskPath  = "",      # optional: normally the task is found by what it runs
+    [string]$TaskName  = "",
     [string]$OldFolder = "C:\priorityalarmsapi"
 )
 Set-StrictMode -Version 1
@@ -22,17 +22,44 @@ $problems = New-Object System.Collections.ArrayList
 function Line([string]$k, [string]$v) { Write-Host ("  {0,-22} {1}" -f $k, $v) }
 function Problem([string]$what, [string]$fix) { [void]$problems.Add("$what`n      -> $fix") }
 
+function Find-BotTask {
+    # The task is found by WHAT it runs (the alarm bot's main.py in C:\cts-api\cts-alarms
+    # or the old C:\priorityalarmsapi), not by its name: the name differs between servers.
+    if ($script:TaskName) {
+        # Given by hand: accept "TacVistaMails", "\TacVistaMails" or "\TacVistaMails\".
+        $tp = "\" + ($script:TaskPath + "").Trim().Trim('\')
+        if ($tp -ne "\") { $tp += "\" }
+        return @(Get-ScheduledTask -TaskPath $tp -TaskName $script:TaskName -ErrorAction SilentlyContinue)
+    }
+    return @(Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object {
+        $hit = $false
+        foreach ($a in @($_.Actions)) {
+            $s = "" + $a.Execute + " " + $a.Arguments + " " + $a.WorkingDirectory
+            if (($s -match '(?i)main\.py') -and ($s -match '(?i)cts-api\\cts-alarms|priorityalarmsapi')) { $hit = $true }
+        }
+        $hit
+    })
+}
+
 Write-Host ""
 Write-Host "Alarm bot status  $(Get-Date -Format 'yyyy-MM-dd HH:mm')" -ForegroundColor Cyan
 
 # --- the task ---------------------------------------------------------------
-$task = Get-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction SilentlyContinue
-if (-not $task) {
-    Problem "Scheduled task $TaskPath$TaskName not found." "Recreate it: it is needed before install.cmd can run (report it)."
+$found = Find-BotTask
+$task = $null
+if ($found.Count -eq 0) {
+    Problem "No scheduled task runs the alarm bot's main.py." "Check Task Scheduler; the task must run C:\cts-api\cts-alarms\main.py (report it)."
+} elseif ($found.Count -gt 1) {
+    Problem ("More than one scheduled task runs the alarm bot: " + (($found | ForEach-Object { $_.TaskPath + $_.TaskName }) -join ", ")) "Disable the extra one(s) in Task Scheduler."
 } else {
+    $task = $found[0]
+    $TaskPath = $task.TaskPath
+    $TaskName = $task.TaskName
+}
+if ($task) {
     $info = Get-ScheduledTaskInfo -TaskPath $TaskPath -TaskName $TaskName
     $act  = $task.Actions | Select-Object -First 1
-    Write-Host "Task" -ForegroundColor Cyan
+    Write-Host "Task $TaskPath$TaskName" -ForegroundColor Cyan
     Line "state" $task.State
     Line "runs as" $task.Principal.UserId
     Line "program" $act.Execute
@@ -70,9 +97,9 @@ if (-not (Test-Path $sec)) {
     } catch { $ok = $false }
     $acl = (Get-Acl $sec).Access | ForEach-Object { $_.IdentityReference.Value }
     $open = @($acl | Where-Object { $_ -match 'Everyone|Authenticated Users|\\Users$|^BUILTIN\\Users|Brugere|Alle' })
-    Line "secrets.json" ("present, username+password " + $(if ($ok) { "set" } else { "NOT set" }) + $(if ($open.Count) { ", readable by other users!" } else { ", locked" }))
+    # Other Windows users on the server may read it: the owner accepts that, so it is only shown.
+    Line "secrets.json" ("present, username+password " + $(if ($ok) { "set" } else { "NOT set" }) + $(if ($open.Count) { ", other Windows users can read it (allowed)" } else { ", locked" }))
     if (-not $ok) { Problem "secrets.json has no MainManager username/password." "Double-click install.cmd." }
-    if ($open.Count) { Problem "secrets.json can be read by other users." "Double-click install.cmd (it locks the file)." }
 }
 foreach ($f in @("alarms_state.json", "csv_state.json")) {
     $p = Join-Path $App $f

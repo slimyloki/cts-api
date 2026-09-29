@@ -88,6 +88,53 @@ class InstallScriptTests(unittest.TestCase):
             self.assertIn("https://github.com/slimyloki/cts-api/archive/refs/heads/main.zip", txt)
             self.assertIn("git clone https://github.com/slimyloki/cts-api.git C:\\cts-api", txt)
 
+    def test_task_is_found_by_what_it_runs_not_by_name(self):
+        # The server's task is \\TacVistaMails\\Alarm_Bot, not the exported name: no name is hard-coded.
+        for f in (PS1, ROOT / "status.ps1"):
+            t = f.read_text("ascii")
+            self.assertNotIn("TACVista_Alarm_Bot", t)
+            self.assertNotIn("TACVistaLogs", t)
+            self.assertIn("function Find-BotTask", t)
+            self.assertRegex(t, r'\[string\]\$TaskName\s*=\s*""')
+        # -Download hands the same task to the new installer
+        self.assertIn('$argv += @("-TaskName", $TaskName)', self.text)
+
+    @unittest.skipUnless(shutil.which("pwsh"), "pwsh not installed")
+    def test_find_bot_task_behaviour(self):
+        # Runs the real Find-BotTask from both scripts against a fake Get-ScheduledTask.
+        fake = (
+            "function New-T($p,$n,$e,$a,$w){ [pscustomobject]@{TaskPath=$p;TaskName=$n;"
+            "Actions=@([pscustomobject]@{Execute=$e;Arguments=$a;WorkingDirectory=$w})} }; "
+            "$script:all=@("
+            "(New-T '\\TacVistaMails\\' 'Alarm_Bot' 'C:\\py\\python.exe' '\"C:\\cts-api\\cts-alarms\\main.py\"' 'C:\\cts-api\\cts-alarms'),"
+            "(New-T '\\' 'Indeklima_Bot_v2' 'C:\\py\\python.exe' 'main.py' 'C:\\vista-opc\\indeklima-bot'),"
+            "(New-T '\\Other\\' 'Backup' 'robocopy.exe' 'C:\\a C:\\b' ''));"
+            "function Get-ScheduledTask { param($TaskPath,$TaskName,$ErrorAction) "
+            "  if ($TaskName) { return @($script:all | ? { $_.TaskPath -eq $TaskPath -and $_.TaskName -eq $TaskName }) }; "
+            "  return $script:all }; "
+        )
+        for f in (PS1, ROOT / "status.ps1"):
+            cmd = (
+                "$ast=[System.Management.Automation.Language.Parser]::ParseFile('" + str(f) + "',[ref]$null,[ref]$null); "
+                "$fn=$ast.FindAll({param($x) $x -is [System.Management.Automation.Language.FunctionDefinitionAst] "
+                "-and $x.Name -eq 'Find-BotTask'},$true)[0]; . ([scriptblock]::Create($fn.Extent.Text)); " + fake +
+                "$TaskPath=''; $TaskName=''; $r=@(Find-BotTask); 'auto=' + ($r | % { $_.TaskPath + $_.TaskName }) + ';' + $r.Count; "
+                "$TaskPath='TacVistaMails'; $TaskName='Alarm_Bot'; $r=@(Find-BotTask); 'byname=' + $r.Count; "
+                "$TaskPath=''; $TaskName='Nope'; $r=@(Find-BotTask); 'missing=' + $r.Count; "
+                "$TaskName=''; $script:all += (New-T '\\Old\\' 'Old_Bot' 'python.exe' 'C:\\priorityalarmsapi\\main.py' ''); "
+                "$r=@(Find-BotTask); 'two=' + $r.Count"
+            )
+            out = subprocess.run(["pwsh", "-NoProfile", "-NonInteractive", "-Command", cmd],
+                                 capture_output=True, text=True, timeout=120)
+            self.assertEqual(out.stdout.split(), ["auto=\\TacVistaMails\\Alarm_Bot;1", "byname=1", "missing=0", "two=2"],
+                             f.name + ": " + out.stdout + out.stderr)
+
+    def test_status_does_not_count_readable_secrets_as_a_problem(self):
+        # Owner, 2026-09-29: other Windows users on the server may read secrets.json.
+        st = (ROOT / "status.ps1").read_text("ascii")
+        self.assertIn("other Windows users can read it (allowed)", st)
+        self.assertNotRegex(st, r"Problem [^\n]*read by other users")
+
     def test_status_script_is_read_only_and_safe(self):
         st = (ROOT / "status.ps1").read_bytes()
         self.assertTrue(all(b < 128 for b in st))

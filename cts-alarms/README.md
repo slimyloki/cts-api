@@ -19,7 +19,7 @@ imported on 2026-09-29 from `slimyloki/cts-alarms` at commit `907d91f`, without 
 | `secrets.example.json` | Template for `secrets.json`, which lives only on the CTS server. |
 | `objects.csv` | Maps an alarm object to a MainManager MainID (empty today, so the fallback MainID is used). |
 | `exceptions.csv` | Vista directories that never create incidents. |
-| `TACVista_Alarm_Bot.xml` | Export of the scheduled task. |
+| `TACVista_Alarm_Bot.xml` | Old export of the scheduled task. Outdated: on the server the task is `\TacVistaMails\Alarm_Bot` and runs `C:\cts-api\cts-alarms\main.py` ([TODO T-114](docs/TODO.md)). |
 | `install.cmd`, `update.cmd`, `status.cmd` (+ `.ps1`) | Double-click on the CTS server: install (moves old data once, `secrets.json`, dry-run gate, enable), update (pull + gate + way back), health check. See [INSTALL.md](INSTALL.md). |
 | `tests/` | Unit tests; no network, no CTS server needed. |
 | `docs/` | arc42, ADRs, C4, reference docs and the backlog. Start at [docs/README.md](docs/README.md). |

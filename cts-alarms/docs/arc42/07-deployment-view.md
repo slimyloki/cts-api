@@ -72,6 +72,11 @@ flowchart LR
 
 ### Task Scheduler definition (`TACVista_Alarm_Bot.xml`)
 
+> **Outdated export (2026-09-29).** On the CTS server the task is `\TacVistaMails\Alarm_Bot` and runs
+> `C:\cts-api\cts-alarms\main.py`. The table below describes the committed export, `\TACVistaLogs\TACVista_Alarm_Bot`
+> with `C:\priorityalarmsapi`. `install.cmd` and `status.cmd` find the task by its action, not by its name.
+> Refreshing the export is [TODO T-114](../TODO.md).
+
 | Setting | Value | Consequence |
 |---|---|---|
 | URI | `\TACVistaLogs\TACVista_Alarm_Bot` | Lives in a `TACVistaLogs` folder in Task Scheduler |

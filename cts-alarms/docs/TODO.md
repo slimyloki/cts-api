@@ -33,7 +33,7 @@ not worked on here.
 | P2 | Should do; improves correctness or maintainability. |
 | P3 | Nice to have. |
 
-Ids `T-nnn` are stable and never reused or renumbered. Next free id: **T-114**.
+Ids `T-nnn` are stable and never reused or renumbered. Next free id: **T-115**.
 
 ---
 
@@ -59,6 +59,7 @@ Ids `T-nnn` are stable and never reused or renumbered. Next free id: **T-114**.
 | T-111 | P2 | done (2026-09-29) | Where the bot runs on the CTS server | Owner decided: in place from `C:\cts-api\cts-alarms`; `C:\priorityalarmsapi` retired ([ADR-0024](adr/0024-run-in-place-from-cts-api.md)). v2.1.1 resolves every config path next to `config.json`; `install.cmd` moves the data once and renames the old folder after a clean dry run. |
 | T-112 | P3 | todo | Installer: set the digibuild ingest secret | `install.cmd -ResetSecrets` keeps an existing `vps` section in `secrets.json` but never asks for `vps.ingest_secret`, and nothing sets it. Needed only when the shipper is switched on (T-092). Options: add an `-IngestSecret` switch to `install.ps1` that prompts with `Read-Host -AsSecureString` and writes it next to the MainManager pair, or make it part of the "enable the shipper" runbook (`cts-server-runbook-writer`). Acceptance: the owner can set it by double-click, without editing JSON; the dry run then shows `[DRY] VPS ingest secret: present`. | [reference/install-script.md](reference/install-script.md), [reference/shipper.md](reference/shipper.md), T-092 |
 | T-113 | P0 | done (2026-09-29) | v2.1.1: safe login handling and in-place running | The owner repointed the task to run `C:\cts-api\cts-alarms\main.py` in place. v2.1.0 then still read `C:\priorityalarmsapi\config.json` (old config, rotated password), and a failed login counted per transition: three runs later every pending update was abandoned, with a burst of failed logins every 5 minutes on the shared account. Fixed in v2.1.1: `config.json` next to `main.py`; relative `secrets_file` next to it; one login check per real run that defers everything on failure; a 30-minute backoff after a rejected login unless the credentials change (`mm_auth_failed.json`); `config=` in the banner. 7 new tests. | [reference/state-files.md](reference/state-files.md), [reference/log-format.md](reference/log-format.md) |
+| T-114 | P3 | todo | Refresh the scheduled-task export | The committed `TACVista_Alarm_Bot.xml` is `\TACVistaLogs\TACVista_Alarm_Bot` running `C:\priorityalarmsapi`; on the server the task is `\TacVistaMails\Alarm_Bot` (found 2026-09-29 when `status.cmd` could not find the old name). `install.ps1`/`status.ps1` now find the task by its action. Acceptance: a runbook exports the live task to the repo (no password, operator label checked by the scope guard) and the arc42 §7 / glossary / C4 task names are updated. | [arc42 §7](arc42/07-deployment-view.md) |
 
 ## 1. Security & secrets (P0)
 
@@ -235,3 +236,4 @@ Owner: "I deliberately uploaded the logs to GitHub just to see what we log and j
 | 2026-09-29 | T-105 done: the Indeklima bot is live on v3 (mirror: first tickets 12:15 UTC); its move into cts-api is tracked in cts-api `docs/MIGRATION.md`. |
 | 2026-09-29 | T-113 added and done: v2.1.1 (config next to `main.py`, relative `secrets.json`, one login check per run with a 30-minute backoff). |
 | 2026-09-29 | T-111 done (in place, ADR-0024); T-103 reworded for `install.cmd` in place; `status.cmd` added. |
+| 2026-09-29 | T-114 added: the server's task is `\TacVistaMails\Alarm_Bot`, not the exported name. `install.cmd`/`status.cmd` now find it by what it runs; `status.cmd` shows a `secrets.json` readable by other Windows users as information only (owner: that is fine). |

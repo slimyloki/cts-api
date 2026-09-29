@@ -32,6 +32,9 @@ On this first run it also moves `alarms_state.json`, `csv_state.json`, `csv\`, `
 `secrets.json` from `C:\priorityalarmsapi` into `C:\cts-api\cts-alarms`. After the test run has passed, it renames
 the old folder to `C:\priorityalarmsapi.retired-<date>`. Delete that folder whenever you like.
 
+The script finds the scheduled task by what it runs, so its name does not matter. On this server it is
+**`\TacVistaMails\Alarm_Bot`**.
+
 If anything is wrong, the script stops, says what failed, and leaves the scheduled task **disabled**. The window
 then shows the next step. It is usually one of the commands under [Other things](#other-things).
 
@@ -55,6 +58,7 @@ Then one of these:
 | `install.cmd -ResetSecrets` | The password was changed again, or the window or `status.cmd` said the login was rejected. |
 | `install.cmd -Rollback` | Go back to the code from before the last install. State, logs and `secrets.json` stay. |
 | `install.cmd -NoEnable` | Install and test, but leave the task switched off. |
+| `install.cmd -TaskPath \TacVistaMails -TaskName Alarm_Bot` | The window said it found no task, or more than one. This names the task by hand. |
 
 ## What stays out of Git
 

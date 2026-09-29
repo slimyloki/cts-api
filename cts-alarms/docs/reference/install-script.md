@@ -18,7 +18,7 @@ steps are in [INSTALL.md](../../INSTALL.md); this page is the reference.
 
 | Step | Action | Stops when |
 |---|---|---|
-| 1 | Reads the task `\TACVistaLogs\TACVista_Alarm_Bot`. Its action must run this folder's `main.py`; if not, it tries `Set-ScheduledTask` and otherwise prints the Task Scheduler click steps. Checks the task's Python imports `requests`. | task or Python missing, task cannot be repointed |
+| 1 | Finds the scheduled task by what it runs: the one task whose action names `main.py` together with `cts-api\cts-alarms` or `priorityalarmsapi`. The task's name and folder do not matter; on the CTS server it is `\TacVistaMails\Alarm_Bot`. `-TaskPath`/`-TaskName` name it by hand. Its action must run this folder's `main.py`; if not, it tries `Set-ScheduledTask` and otherwise prints the Task Scheduler click steps. Checks the task's Python imports `requests`. | no such task, more than one, Python missing, task cannot be repointed |
 | 2 | Disables the task and waits until no run is in progress. | a run lasts over 3 minutes |
 | 3 | Backs up code, config and state to `C:\cts-api-backups\cts-alarms\<date-time>\`, with the Git commit in `commit.txt`. Never `secrets.json`, not `logs\`/`csv\`. The folder is readable only by the task account, Administrators and SYSTEM. | icacls fails |
 | 4 | **Once:** if `C:\priorityalarmsapi\alarms_state.json` exists and this folder has none, it copies `alarms_state.json`, `csv_state.json`, `csv\`, `logs\` and `secrets.json`. If the server's `objects.csv` or `exceptions.csv` differ from the repo's, the server's copy wins and a warning says so. The state files are compared by hash. | a state file did not copy identically, and the old folder is untouched |
@@ -54,7 +54,7 @@ would drop the link to every open ticket (`LEGACY_STATE_FILE`, `main.py`).
 - BOM-less secrets, locked by SID;
 - the dry-run gate strings still exist in `main.py`;
 - the update keeps a way back;
-- `status.ps1` changes nothing;
+- `status.ps1` changes nothing, and finds the task the same way;
 - `.ps1` files are ASCII and `.cmd` files are CRLF.
 
 When `pwsh` is on PATH it also parse-checks both scripts. On 2026-09-29 both passed PSScriptAnalyzer's Windows

@@ -10,8 +10,10 @@
         powershell -NoProfile -ExecutionPolicy Bypass -File C:\cts-api\cts-alarms\install.ps1
 
     What it does, in order. It stops at the first problem and says what to do:
-      1. Checks the scheduled task \TACVistaLogs\TACVista_Alarm_Bot runs THIS
-         folder's main.py (repoints it if it can), and that its Python has 'requests'.
+      1. Finds the scheduled task that runs the bot (by its action: a main.py in
+         C:\cts-api\cts-alarms or C:\priorityalarmsapi -- the task's name does not
+         matter), makes sure it runs THIS folder's main.py (repoints it if it can),
+         and checks that its Python has 'requests'.
       2. Disables the task and waits until no run is in progress.
       3. Backs up the code, config and state files of this folder (not logs\ or
          csv\, never secrets.json) to C:\cts-api-backups\cts-alarms\<date-time>\.
@@ -56,8 +58,8 @@
 param(
     [string]$OldFolder  = "C:\priorityalarmsapi",
     [string]$BackupRoot = "C:\cts-api-backups\cts-alarms",
-    [string]$TaskPath   = "\TACVistaLogs\",
-    [string]$TaskName   = "TACVista_Alarm_Bot",
+    [string]$TaskPath   = "",     # optional: normally the task is found by what it runs
+    [string]$TaskName   = "",
     [string]$Repo       = "slimyloki/cts-api",
     [string]$Branch     = "main",
     [switch]$Download,
@@ -96,6 +98,25 @@ function Fail([string]$msg) {
         Write-Host "  just re-enable the task:      Enable-ScheduledTask -TaskPath '$TaskPath' -TaskName '$TaskName'"
     }
     exit 1
+}
+
+function Find-BotTask {
+    # The task is found by WHAT it runs (the alarm bot's main.py in C:\cts-api\cts-alarms
+    # or the old C:\priorityalarmsapi), not by its name: the name differs between servers.
+    if ($script:TaskName) {
+        # Given by hand: accept "TacVistaMails", "\TacVistaMails" or "\TacVistaMails\".
+        $tp = "\" + ($script:TaskPath + "").Trim().Trim('\')
+        if ($tp -ne "\") { $tp += "\" }
+        return @(Get-ScheduledTask -TaskPath $tp -TaskName $script:TaskName -ErrorAction SilentlyContinue)
+    }
+    return @(Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object {
+        $hit = $false
+        foreach ($a in @($_.Actions)) {
+            $s = "" + $a.Execute + " " + $a.Arguments + " " + $a.WorkingDirectory
+            if (($s -match '(?i)main\.py') -and ($s -match '(?i)cts-api\\cts-alarms|priorityalarmsapi')) { $hit = $true }
+        }
+        $hit
+    })
 }
 
 function Get-BotTask {
@@ -176,7 +197,19 @@ if (-not $me.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
 # PowerShell 5.1 on Server 2016 does not offer TLS 1.2 by default; GitHub needs it.
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
-$task   = Get-BotTask
+$found = Find-BotTask
+if ($found.Count -eq 0) {
+    Fail ("No scheduled task runs the alarm bot's main.py (in C:\cts-api\cts-alarms or C:\priorityalarmsapi). " +
+          "If it has another action, name it: install.cmd -TaskPath \<folder>\ -TaskName <name>")
+}
+if ($found.Count -gt 1) {
+    Fail ("More than one scheduled task runs the alarm bot: " + (($found | ForEach-Object { $_.TaskPath + $_.TaskName }) -join ", ") +
+          ". Disable the extra one(s) in Task Scheduler, or name the right one with -TaskPath/-TaskName.")
+}
+$task     = $found[0]
+$TaskPath = $task.TaskPath
+$TaskName = $task.TaskName
+Ok "scheduled task: $TaskPath$TaskName"
 $action = $task.Actions | Select-Object -First 1
 $py     = $action.Execute.Trim('"')
 $script:RunAs = $task.Principal.UserId
@@ -223,6 +256,11 @@ if ($Download) {
     if ($ResetSecrets) { $argv += "-ResetSecrets" }
     if ($NoEnable)     { $argv += "-NoEnable" }
     if ($Yes)          { $argv += "-Yes" }
+    # The same task again. No backslashes at the ends (a trailing one would escape the
+    # closing quote) and no empty argument (Windows PowerShell drops it).
+    $tpArg = $TaskPath.Trim('\')
+    if ($tpArg) { $argv += @("-TaskPath", $tpArg) }
+    $argv += @("-TaskName", $TaskName)
     & powershell.exe @argv
     exit $LASTEXITCODE
 }
@@ -270,7 +308,7 @@ if (-not $inPlace) {
         Ok "task now runs $mainPy"
     } catch {
         Fail ("Windows did not let the script change the task ($($_.Exception.Message)). Change it by hand: " +
-              "Task Scheduler > TACVistaLogs > TACVista_Alarm_Bot > Properties > Actions > Edit: " +
+              "Task Scheduler > Task Scheduler Library" + ($TaskPath.TrimEnd('\') -replace '\\', ' > ') + " > $TaskName > Properties > Actions > Edit: " +
               "'Add arguments' = `"$mainPy`", 'Start in' = $App. Then double-click install.cmd again.")
     }
 } else {
