@@ -1,0 +1,9 @@
+# objects.csv — maps Vista alarm_object (column 2 of $this.alr) to MainManager MainID.
+# Format: <alarm_object>,<main_id>
+# Lines starting with '#' and blank lines are ignored.
+# Unmapped alarm objects fall back to mainmanager.default_main_id from config.json.
+#
+# Note: alarm_object includes the suffix (_AH for high-alarm, _AL for low-alarm,
+# _A for generic). Map each point you want separately. Same sensor with _AH
+# and _AL can point to the same MainID or different ones.
+#

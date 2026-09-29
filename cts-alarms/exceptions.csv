@@ -1,0 +1,11 @@
+# exceptions.txt — full Vista directory paths (column 22 of $this.alr) that
+# the bot should IGNORE. Matches exactly — no wildcards.
+# Lines starting with '#' and blank lines are ignored.
+#
+# Priority 9 ($EE_Mess system events) are already filtered by the priority
+# threshold, so don't list those here.
+#
+# Typical candidates: manually-overridden objects, intentional forced I/O
+# points, known-broken sensors you don't want tickets for.
+#
+VISTA_SERVER-LOYTEC_PORT-RHQ-345_02_ET9_XENTA-0201_01-340_060X.Manuel_A

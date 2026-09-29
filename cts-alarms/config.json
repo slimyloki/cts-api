@@ -1,0 +1,36 @@
+{
+    "thresholds": {
+        "max_priority_number": 2,
+        "_comment": "Trigger incidents for Vista priority 1, 2, and 3. Lower = more urgent."
+    },
+
+    "paths": {
+        "vista_alarm_file": "C:\\ProgramData\\Schneider Electric\\TAC Vista 5.1.9\\DB\\$thisdb\\$this.alr",
+        "objects_csv":      "C:\\priorityalarmsapi\\objects.csv",
+        "exceptions_csv":   "C:\\priorityalarmsapi\\exceptions.csv",
+        "working_folder":   "C:\\priorityalarmsapi",
+        "state_file":       "C:\\priorityalarmsapi\\alarms_state.json",
+        "csv_folder":       "C:\\priorityalarmsapi\\csv",
+        "csv_state_file":   "C:\\priorityalarmsapi\\csv_state.json",
+        "log_folder":       "C:\\priorityalarmsapi\\logs",
+        "secrets_file":     "C:\\priorityalarmsapi\\secrets.json"
+    },
+
+    "mainmanager": {
+        "base_url": "https://rambollfm.mainmanager.dk",
+        "_comment": "Credentials live in secrets.json (paths.secrets_file) or MM_USERNAME/MM_PASSWORD — never in this file. See secrets.example.json.",
+        "default_main_id": 14228,
+        "incident_defaults": {
+            "_comment": "v3 write model (POST/PUT /api/v3/incidents). IncidentTypeID 277 = 'CTS API' (was CheckwordItemID); LocationID 6 = Rambøll HQ bygning; ReportedByID 748 = TacVista Automated Services, org 11 = Rambøll Danmark A/S; GradeID 10; StatusID 5 = Awaits handling (enforced with a PUT after create). Values as carried by every ticket the bot created since 2026-04.",
+            "IncidentTypeID": 277,
+            "LocationID": 6,
+            "ReportedByID": 748,
+            "ReportedByOrganisationID": 11,
+            "GradeID": 10,
+            "StatusID": 5
+        }
+    },
+
+    "log_encoding": "iso-8859-1",
+    "prune_resolved_after_days": 30
+}

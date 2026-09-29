@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------------
+# Secrets — never commit. The repo is PUBLIC (github.com/slimyloki/cts-alarms).
+# Credentials live only in secrets.json on the CTS server (see
+# secrets.example.json); tests/test_repo_hygiene.py fails if config.json ever
+# carries a credential again.
+# ---------------------------------------------------------------------------
+secrets.json
+secrets.*.json
+*.secrets.json
+!secrets.example.json
+mm_token*.json
+vps_api_key*.txt
+*.env
+.env
+.env.*
+!*.env.example
+*.pem
+*.key
+*.pfx
+# copies of config.json made while editing on the server (may hold the old password)
+config.*.json
+config.json.*
+*.bak
+*.orig
+
+# ---------------------------------------------------------------------------
+# Runtime data written by the bot on the CTS server — lives there, not here.
+# The history up to 2026-09-28 is archived privately on the VPS for the import.
+# ---------------------------------------------------------------------------
+/alarms_state.json
+/csv_state.json
+/alarm_snapshot.alr
+/csv/
+/logs/
+outbox.sqlite*
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# atomic-write leftovers
+*.tmp

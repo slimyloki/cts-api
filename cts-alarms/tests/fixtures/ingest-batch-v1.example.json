@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "source": "cts-alarm-bot",
+  "run": {
+    "run_id": "2026-09-29T10:00:00+02:00",
+    "started_at": "2026-09-29T10:00:00+02:00",
+    "finished_at": "2026-09-29T10:00:00+02:00",
+    "bot_version": "2.1.0",
+    "host": "CTS-SERVER",
+    "parsed_rows": 3,
+    "kept": 2,
+    "csv_events": 2,
+    "created": 0,
+    "updated": 1,
+    "resolved": 0,
+    "unchanged": 1,
+    "errors": [
+      "UpdateIncident FAILED for X: 404"
+    ],
+    "exit_code": 0
+  },
+  "events": [
+    {
+      "vista_id": "VISTA_SERVER#000001",
+      "alarm_object": "325-10-04806-Udsugning",
+      "directory": "VISTA_SERVER-LOYTEC_PORT-RHQ-345_02_ET9_XENTA-0207_01-Udsugning",
+      "alarm_text": "Fejl på ventilator",
+      "priority": 2,
+      "user": "No user",
+      "ack_flag": 0,
+      "state1": 0,
+      "state2": 0,
+      "date1_epoch": 1748960574,
+      "date2_epoch": 1748960574,
+      "count": 1,
+      "status_label": "ACTIVE",
+      "ts": "2026-09-29T10:00:00+02:00",
+      "event": "FIRST_SEEN"
+    },
+    {
+      "vista_id": "VISTA_SERVER#000002",
+      "alarm_object": "obj",
+      "directory": "dir",
+      "alarm_text": "gone",
+      "priority": 3,
+      "user": null,
+      "ack_flag": null,
+      "state1": null,
+      "state2": null,
+      "date1_epoch": null,
+      "date2_epoch": null,
+      "count": null,
+      "status_label": "RESOLVED",
+      "ts": "2026-09-29T10:00:00+02:00",
+      "event": "RESOLVED"
+    }
+  ],
+  "snapshot": [
+    {
+      "vista_id": "VISTA_SERVER#000001",
+      "alarm_object": "325-10-04806-Udsugning",
+      "directory": "VISTA_SERVER-LOYTEC_PORT-RHQ-345_02_ET9_XENTA-0207_01-Udsugning",
+      "alarm_text": "Fejl på ventilator",
+      "priority": 2,
+      "user": "No user",
+      "ack_flag": 0,
+      "state1": 0,
+      "state2": 0,
+      "date1_epoch": 1748960574,
+      "date2_epoch": 1748960574,
+      "count": 1,
+      "status_label": "ACTIVE"
+    }
+  ],
+  "incidents": [
+    {
+      "vista_id": "VISTA_SERVER#000001",
+      "incident_id": 36693,
+      "main_id": 14228,
+      "main_id_fallback_used": true,
+      "status": "ACTIVE",
+      "first_seen": "2026-09-01T10:00:00+02:00",
+      "last_update": "2026-09-02T10:00:00+02:00",
+      "resolved_at": null
+    },
+    {
+      "vista_id": "VISTA_SERVER#000002",
+      "incident_id": null,
+      "main_id": 9756,
+      "main_id_fallback_used": true,
+      "status": "RESOLVED",
+      "first_seen": "2026-04-17T10:57:58+02:00",
+      "last_update": "2026-04-17T10:57:58+02:00",
+      "resolved_at": "2026-04-18T08:00:00+02:00"
+    }
+  ]
+}
