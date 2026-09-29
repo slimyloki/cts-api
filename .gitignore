@@ -1,0 +1,45 @@
+# ---------------------------------------------------------------------------
+# cts-api is PUBLIC. Nothing secret, nothing personal, no runtime data.
+# Each application folder has its own .gitignore for its runtime files.
+# ---------------------------------------------------------------------------
+
+# secrets, keys, tokens (any folder)
+secrets.json
+secrets.*.json
+*.secrets.json
+!secrets.example.json
+*token*.json
+*.env
+.env
+.env.*
+!*.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+appsettings.*.local.json
+
+# editor / OS / build leftovers
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+bin/
+obj/
+*.user
+*.suo
+.vs/
+Thumbs.db
+desktop.ini
+*.tmp
+*.bak
+*.orig
+
+# local databases and outboxes
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
