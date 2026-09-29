@@ -34,5 +34,10 @@
     },
 
     "log_encoding": "iso-8859-1",
-    "prune_resolved_after_days": 30
+    "prune_resolved_after_days": 30,
+    "vps": {
+        "_comment": "The digibuild shipper (ADR-0016, ADR-0025): every run is posted to digibuild's cts-alarms service, whose answer brings back the alarm names for new tickets (names.json). The ingest secret lives only in secrets.json on the CTS server (install.cmd -IngestSecret), never here. Set enabled to false to stop shipping; runs are then not queued.",
+        "base_url": "https://api.digibuild.dk",
+        "enabled":  true
+    }
 }
