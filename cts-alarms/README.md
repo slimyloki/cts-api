@@ -13,7 +13,7 @@ imported on 2026-09-29 from `slimyloki/cts-alarms` at commit `907d91f`, without 
 
 | File | What it is |
 |---|---|
-| `main.py` | The bot (v2.1.0). Run by Task Scheduler every 5 minutes. |
+| `main.py` | The bot (v2.2.0). Run by Task Scheduler every 5 minutes. |
 | `shipper.py` | Optional: posts each run to `api.digibuild.dk`; SQLite outbox on failure. Off without a `"vps"` section in `config.json`. |
 | `config.json` | Paths, thresholds, MainManager URL and incident defaults. **No credentials.** |
 | `secrets.example.json` | Template for `secrets.json`, which lives only on the CTS server. |

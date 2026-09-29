@@ -14,7 +14,8 @@
         "csv_folder":       "csv",
         "csv_state_file":   "csv_state.json",
         "log_folder":       "logs",
-        "secrets_file":     "secrets.json"
+        "secrets_file":     "secrets.json",
+        "names_file":       "names.json"
     },
 
     "mainmanager": {

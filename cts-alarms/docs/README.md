@@ -1,6 +1,6 @@
 # cts-alarms — documentation index
 
-Documentation for the **TAC Vista alarm bot**: a scheduled Python script (`main.py` v2.1.0) on the CTS
+Documentation for the **TAC Vista alarm bot**: a scheduled Python script (`main.py` v2.2.0) on the CTS
 server (Windows Server 2016, Schneider Electric TAC Vista 5.1.9 building-management system). Every 5 minutes it
 reads Vista's live alarm list and writes a CSV audit trail. It creates and updates incidents in MainManager
 (Ramboll FM, v3 API) for priority 1–2 alarms. Its optional shipper (`shipper.py`) posts each run to the digibuild

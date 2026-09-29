@@ -39,7 +39,7 @@ try:
 except ImportError:
     shipper = None
 
-__version__ = "2.1.1"   # config next to main.py, relative secrets_file, one login check per run
+__version__ = "2.2.0"   # alarm names from digibuild in new tickets (ADR-0025); ingest-secret prompt
 
 
 # ---------------------------------------------------------------------------
@@ -941,21 +941,83 @@ def describe_transitions(prev_sig: tuple, alarm: Alarm) -> list[str]:
     return lines
 
 
-def initial_description(alarm: Alarm) -> str:
+def initial_description(alarm: Alarm, point: Optional[dict] = None) -> str:
     ts = dk_now_str()
     text = alarm.alarm_text or "(no text)"
-    return (
-        f'{ts} Alarm bot - NEW alarm, status: {alarm.status_label}, '
-        f'priority {alarm.priority}: "{text}"\n'
-        f"Object: {alarm.alarm_object}\n"
-        f"Directory: {alarm.directory}"
-    )
+    lines = [f'{ts} Alarm bot - NEW alarm, status: {alarm.status_label}, '
+             f'priority {alarm.priority}: "{text}"']
+    lines += name_lines(point)
+    lines += [f"Object: {alarm.alarm_object}", f"Directory: {alarm.directory}"]
+    return "\n".join(lines)
 
 
-def incident_name(alarm: Alarm, max_len: int = 100) -> str:
+def incident_name(alarm: Alarm, max_len: int = 100,
+                  point: Optional[dict] = None) -> str:
+    """"CTS Alarm - <name> - <alarm text>": the name given on the website when
+    there is one (ADR-0025), otherwise Vista's object code."""
     text = alarm.alarm_text or "alarm"
-    name = f"CTS Alarm - {alarm.alarm_object} - {text}"
+    label = (point or {}).get("name") or alarm.alarm_object
+    name = f"CTS Alarm - {label} - {text}"
     return name if len(name) <= max_len else name[: max_len - 3] + "..."
+
+
+# ---------------------------------------------------------------------------
+# Alarm names from the website (digibuild catalogue) -- ADR-0025
+# ---------------------------------------------------------------------------
+# The shipper writes names.json from digibuild's ingest answer; the bot reads
+# it at the start of every run. {"version", "received", "points": {directory:
+# {"name", "building", "floor", "system"}}} -- only the fields that are set.
+
+NAME_FIELDS = (("name", "Name"), ("building", "Building"),
+               ("floor", "Floor"), ("system", "System"))
+
+
+def load_names(path: Optional[str], log: logging.Logger) -> dict[str, dict]:
+    """{directory: {name?, building?, floor?, system?}}. No file = no names
+    yet. A broken file is logged and ignored: the bot never stops for it."""
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        points = data.get("points") if isinstance(data, dict) else None
+        if not isinstance(points, dict):
+            raise ValueError("no 'points' object")
+    except Exception as e:
+        log.warning(f"Alarm names file {path} unreadable -- no names this run: {e}")
+        return {}
+    names: dict[str, dict] = {}
+    for directory, entry in points.items():
+        if not isinstance(directory, str) or not isinstance(entry, dict):
+            continue
+        clean = {k: entry[k].strip() for k, _label in NAME_FIELDS
+                 if isinstance(entry.get(k), str) and entry[k].strip()}
+        if clean:
+            names[directory] = clean
+    return names
+
+
+def names_signature(point: Optional[dict]) -> Optional[str]:
+    """What the ticket was last told about its point's name (None = no name)."""
+    if not point:
+        return None
+    return json.dumps({k: point[k] for k, _l in NAME_FIELDS if point.get(k)},
+                      ensure_ascii=False, sort_keys=True)
+
+
+def name_lines(point: Optional[dict]) -> list[str]:
+    """ "Name: ...", "Building: ...", ... -- for a new ticket's description."""
+    return [f"{label}: {point[k]}" for k, label in NAME_FIELDS
+            if point and point.get(k)]
+
+
+def named_line(point: dict) -> str:
+    """The one line an OPEN ticket gets when its point is named (or renamed)."""
+    label = f'"{point["name"]}"' if point.get("name") else "(no name)"
+    place = ", ".join(f"{lab}: {point[k]}" for k, lab in NAME_FIELDS[1:]
+                      if point.get(k))
+    return (f"{dk_now_str()} Alarm bot - alarm point named on digibuild.dk: "
+            f"{label}" + (f" ({place})" if place else ""))
 
 
 # ---------------------------------------------------------------------------
@@ -1030,11 +1092,13 @@ def create_incident_for_alarm(alarm: Alarm, main_id: int, fallback: bool,
                               mm: "MMClient", state: dict, log: logging.Logger,
                               dry_run: bool,
                               extra_desc_lines: Optional[list[str]] = None,
-                              errors: Optional[list[str]] = None
+                              errors: Optional[list[str]] = None,
+                              point: Optional[dict] = None
                               ) -> Optional[int]:
-    """Create a MainManager incident. Returns incident_id or None."""
-    name = incident_name(alarm)
-    desc = initial_description(alarm)
+    """Create a MainManager incident. Returns incident_id or None. `point` is
+    the website's name for the alarm point (load_names), if it has one."""
+    name = incident_name(alarm, point=point)
+    desc = initial_description(alarm, point)
     if extra_desc_lines:
         desc = "\n".join(extra_desc_lines) + "\n" + desc
 
@@ -1085,6 +1149,10 @@ def run(cfg: dict, args: argparse.Namespace, log: logging.Logger) -> int:
     mapping    = load_objects_csv(paths["objects_csv"], log)
     exceptions = load_exceptions_csv(paths["exceptions_csv"], log)
     state      = load_state(paths["state_file"])
+    names_file = paths.get("names_file") or resolve_path(cfg, "names.json")
+    names      = load_names(names_file, log)
+    if names:
+        log.info(f"Loaded {len(names)} alarm names from {names_file}")
 
     # --dry-run and --parse-only never persist anything: no state, no CSV,
     # no outbox (the shipper only logs "[DRY] Would ship" in a dry run).
@@ -1280,7 +1348,7 @@ def run(cfg: dict, args: argparse.Namespace, log: logging.Logger) -> int:
         return True
 
     # ---- Process current alarms ---------------------------------------
-    created = updated = skipped = deferred = 0
+    created = updated = skipped = deferred = named = 0
 
     for a in kept:
         prev = state["alarms"].get(a.vista_id)
@@ -1291,15 +1359,19 @@ def run(cfg: dict, args: argparse.Namespace, log: logging.Logger) -> int:
                 deferred += 1           # not recorded: next run sees it as new
                 continue
             mid, fb = resolve_main_id(a, mapping, mm_cfg["default_main_id"], log)
+            point = names.get(a.directory)
             try:
                 iid = create_incident_for_alarm(
-                    a, mid, fb, _mm(), state, log, args.dry_run, errors=errors
+                    a, mid, fb, _mm(), state, log, args.dry_run, errors=errors,
+                    point=point,
                 )
             except MMNotFound:
                 _on_not_found(a.vista_id, None, "CreateIncident")
                 deferred += 1
                 continue
             entry = make_state_entry(a, mid, iid, a.status_label, fb)
+            if iid is not None and point:
+                entry["named_sig"] = names_signature(point)
             state["alarms"][a.vista_id] = entry
             _save()
             if iid is not None:
@@ -1310,6 +1382,34 @@ def run(cfg: dict, args: argparse.Namespace, log: logging.Logger) -> int:
         if prev.get("status") == ALARM_RESOLVED:
             log.warning(f"{a.vista_id} reappeared after RESOLVED — ignoring")
             continue
+
+        # -- Named on the website since its ticket was written? Tell the
+        #    open ticket once (ADR-0025). The title is never changed. -----
+        point = names.get(a.directory)
+        nsig  = names_signature(point)
+        open_iid = prev.get("incident_id")
+        if (nsig and nsig != prev.get("named_sig") and open_iid is not None
+                and not prev.get("incident_missing")
+                and not (api_down and not args.dry_run)):
+            line = named_line(point)
+            if args.dry_run:
+                log.info(f"[DRY] Would add the name to incident {open_iid}: {line}")
+            else:
+                try:
+                    _mm().prepend_description_line(open_iid, line)
+                except MMNotFound:
+                    _on_not_found(a.vista_id, prev, "NameIncident")
+                    _save()
+                except Exception as e:
+                    msg = (f"NameIncident FAILED for {a.vista_id} (incident "
+                           f"#{open_iid}): {e} -- retried next run")
+                    log.error(msg)
+                    errors.append(msg)
+                else:
+                    prev["named_sig"] = nsig
+                    named += 1
+                    log.info(f"NAMED incident {open_iid} for {a.vista_id}: {line}")
+                    _save()
 
         # -- Check for state transition ----------------------------------
         new_sig  = a.state_signature()
@@ -1343,6 +1443,7 @@ def run(cfg: dict, args: argparse.Namespace, log: logging.Logger) -> int:
                 incident_id = create_incident_for_alarm(
                     a, mid, fb, _mm(), state, log, args.dry_run,
                     extra_desc_lines=transition_lines, errors=errors,
+                    point=point,
                 )
             except MMNotFound:
                 _on_not_found(a.vista_id, None, "CreateIncident")
@@ -1351,6 +1452,8 @@ def run(cfg: dict, args: argparse.Namespace, log: logging.Logger) -> int:
             prev["incident_id"] = incident_id
             if incident_id is not None:
                 created += 1
+                if point:
+                    prev["named_sig"] = nsig
         else:
             # Existing incident — prepend transition lines
             if args.dry_run:
@@ -1457,7 +1560,8 @@ def run(cfg: dict, args: argparse.Namespace, log: logging.Logger) -> int:
         log.error(f"MainManager API was unusable this run ({api_down}); "
                   f"{deferred} action(s) deferred to the next run")
     log.info(f"Run complete: created={created}, updated={updated}, "
-             f"resolved={resolved_now}, unchanged={skipped}, deferred={deferred}")
+             f"resolved={resolved_now}, unchanged={skipped}, deferred={deferred}, "
+             f"named={named}")
     return _ship(0, kept=len(kept), created=created, updated=updated,
                  resolved=resolved_now, unchanged=skipped)
 

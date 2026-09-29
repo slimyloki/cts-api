@@ -38,6 +38,12 @@
 .PARAMETER ResetSecrets
     Ask for the MainManager username and password again (keeps a "vps" section).
 
+.PARAMETER IngestSecret
+    Ask for the digibuild ingest secret again (vps.ingest_secret in secrets.json).
+    It is also asked for, once, when config.json has a "vps" section and
+    secrets.json has no ingest secret yet. Press Enter to skip: the runs are then
+    queued on this server until it is set.
+
 .PARAMETER NoEnable
     Stop after a good test run and leave the task disabled.
 
@@ -64,6 +70,7 @@ param(
     [string]$Branch     = "main",
     [switch]$Download,
     [switch]$ResetSecrets,
+    [switch]$IngestSecret,
     [switch]$NoEnable,
     [switch]$Yes,
     [switch]$Rollback,
@@ -254,6 +261,7 @@ if ($Download) {
     }
     $argv = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $App "install.ps1")) + $back
     if ($ResetSecrets) { $argv += "-ResetSecrets" }
+    if ($IngestSecret) { $argv += "-IngestSecret" }
     if ($NoEnable)     { $argv += "-NoEnable" }
     if ($Yes)          { $argv += "-Yes" }
     # The same task again. No backslashes at the ends (a trailing one would escape the
@@ -451,6 +459,55 @@ if ($needSecrets) {
 } else {
     Ok "secrets.json present, kept (use install.cmd -ResetSecrets to change it)"
 }
+# The digibuild ingest secret: asked for when config.json turns the shipper on
+# ("vps" section) and secrets.json has none yet, or with -IngestSecret. It is
+# typed by hand (the owner cannot paste into this server): 32 characters 0-9 a-f,
+# spaces and dashes ignored, asked twice. Never shown, never logged.
+$cfgObj = $null
+try { $cfgObj = Get-Content (Join-Path $App "config.json") -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $cfgObj = $null }
+$shipOn = [bool]($cfgObj -and $cfgObj.vps -and ($cfgObj.vps.enabled -ne $false))
+$cur = $null
+try { $cur = Get-Content $secretsPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $cur = $null }
+$haveIngest = [bool]($cur -and $cur.vps -and $cur.vps.ingest_secret)
+if ($IngestSecret -or ($shipOn -and -not $haveIngest)) {
+    Say "digibuild ingest secret (stored only in $secretsPath)"
+    Write-Host "  Type the 32 characters shown on the VPS. Spaces and dashes are ignored."
+    Write-Host "  Press Enter to skip: the runs are then kept on this server until it is set."
+    $val = $null
+    $skipped = $false
+    for ($i = 0; $i -lt 3 -and -not $val -and -not $skipped; $i++) {
+        $s1 = Read-Host "  Ingest secret" -AsSecureString
+        $b1 = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($s1)
+        try { $n1 = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($b1) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b1) }
+        $n1 = ($n1 -replace '[\s-]', '').ToLowerInvariant()
+        if (-not $n1) { $skipped = $true; break }
+        $s2 = Read-Host "  Ingest secret again" -AsSecureString
+        $b2 = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($s2)
+        try { $n2 = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($b2) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b2) }
+        $n2 = ($n2 -replace '[\s-]', '').ToLowerInvariant()
+        if ($n1 -ne $n2)                       { Warn "the two differ, try again" }
+        elseif ($n1 -notmatch '^[0-9a-f]{32,}$') { Warn "that is not it: 32 or more characters, only 0-9 and a-f; try again" }
+        else                                   { $val = $n1 }
+        $n1 = $null; $n2 = $null
+    }
+    if ($val) {
+        $obj = [ordered]@{}
+        if ($cur) { foreach ($pr in $cur.PSObject.Properties) { if ($pr.Name -ne "vps") { $obj[$pr.Name] = $pr.Value } } }
+        $vpsObj = [ordered]@{}
+        if ($cur -and $cur.vps) { foreach ($pr in $cur.vps.PSObject.Properties) { $vpsObj[$pr.Name] = $pr.Value } }
+        $vpsObj["ingest_secret"] = $val
+        $obj["vps"] = $vpsObj
+        $json = $obj | ConvertTo-Json -Depth 5
+        [IO.File]::WriteAllText($secretsPath, $json, (New-Object Text.UTF8Encoding($false)))
+        $val = $null; $json = $null; $obj = $null
+        Ok "ingest secret written to secrets.json"
+    } else {
+        Warn "no ingest secret set: runs are queued on this server until install.cmd -IngestSecret"
+    }
+} elseif ($shipOn) {
+    Ok "ingest secret present (use install.cmd -IngestSecret to change it)"
+}
+
 # Every time: readable only by the task account, Administrators and SYSTEM (SIDs
 # work on a Danish-language Windows too).
 $r = Invoke-Native "icacls.exe" @($secretsPath, "/inheritance:r", "/grant:r", "${script:RunAs}:(R)", "*S-1-5-32-544:(F)", "*S-1-5-18:(F)")
@@ -496,6 +553,10 @@ if ($problems.Count -gt 0) {
     Fail ("test run not clean: " + ($problems -join "; ") + "." + $hint)
 }
 Ok "test run clean"
+foreach ($l in @($r.Out | Where-Object { $_ -like "*[[]DRY] VPS *" })) {
+    $fact = ($l -replace '^.*\[DRY\] ', '')
+    if ($fact -like "*MISSING*" -or ($fact -like "*reachability*" -and $fact -notlike "*HTTP 200*")) { Warn $fact } else { Ok $fact }
+}
 
 # ---------------------------------------------------------------------------
 # 7. Retire the old folder (renamed, not deleted)

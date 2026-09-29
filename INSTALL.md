@@ -46,8 +46,10 @@ cd /d C:\cts-api
 git pull
 ```
 
-Pulling never touches the running applications. Only an application's `install.cmd` or `update.cmd` does,
-after it has backed up and tested.
+**Applications run in place from `C:\cts-api`**, so a pull changes the code their next run uses. Prefer the
+application's **`update.cmd`**: it pauses the application, backs up, pulls, test-runs, and puts the previous code
+back if the test fails. A plain `git pull` skips those checks; after one, run the application's `install.cmd`
+(or `status.cmd`) to confirm it still works.
 
 ## One-off actions
 

@@ -161,7 +161,7 @@ class RepoScopeTests(unittest.TestCase):
         runtime = {
             "cts-alarms": ["secrets.json", "alarms_state.json", "csv_state.json", "csv/x.csv",
                            "logs/x.log", "mm_token.json", "mm_auth_failed.json", "outbox.sqlite",
-                           "alarm_snapshot.alr"],
+                           "alarm_snapshot.alr", "names.json"],
         }
         missing = []
         for app, names in runtime.items():

@@ -450,6 +450,99 @@ class RunTests(unittest.TestCase):
         self.assertTrue(any("[DRY] Would mark VISTA_SERVER#10 RESOLVED" in m for m in out))
         self.assertTrue(any("nothing written" in m for m in out))
 
+    # -- Alarm names from the website (ADR-0025) ---------------------------------
+
+    def names(self, points, version="v1"):
+        p = Path(self.tmp.name) / "names.json"
+        p.write_text(json.dumps({"version": version, "points": points}, ensure_ascii=False),
+                     encoding="utf-8")
+        self.cfg["paths"]["names_file"] = str(p)
+        return p
+
+    def test_new_ticket_is_titled_with_the_website_name(self):
+        self.names({"320-01-TEST_A": {"name": "Kølerum 2", "building": "Bygning A",
+                                      "floor": "1. sal", "system": "Køl"}})
+        self.write([alr_row("VISTA_SERVER#20", text="Lav temperatur")], {})
+        rc, alarms, session, out = self.run_bot({
+            ("POST", "/api/v3/incidents"): items({"success": True, "id": 55}),
+            ("GET", "/api/v3/incidents/55"): items({"ID": 55, "StatusID": 5}),
+        })
+        self.assertEqual(rc, 0)
+        item = session.bodies("POST", "/api/v3/incidents")[0]["items"][0]
+        self.assertEqual(item["Name"], "CTS Alarm - Kølerum 2 - Lav temperatur")
+        lines = item["Remarks"].split("\n")
+        self.assertIn('NEW alarm', lines[0])
+        self.assertEqual(lines[1:], ["Name: Kølerum 2", "Building: Bygning A", "Floor: 1. sal",
+                                     "System: Køl", "Object: 320-01-TEST_A",
+                                     "Directory: 320-01-TEST_A"])
+        self.assertIsNotNone(alarms["VISTA_SERVER#20"]["named_sig"])   # no extra line later
+        self.assertTrue(any("Loaded 1 alarm names" in m for m in out))
+
+    def test_without_a_name_the_title_keeps_the_object_code(self):
+        self.names({"OTHER-POINT": {"name": "Somewhere else"}})
+        self.write([alr_row("VISTA_SERVER#21", text="Lav temperatur")], {})
+        rc, alarms, session, _ = self.run_bot({
+            ("POST", "/api/v3/incidents"): items({"success": True, "id": 56}),
+            ("GET", "/api/v3/incidents/56"): items({"ID": 56, "StatusID": 5}),
+        })
+        item = session.bodies("POST", "/api/v3/incidents")[0]["items"][0]
+        self.assertEqual(item["Name"], "CTS Alarm - 320-01-TEST_A - Lav temperatur")
+        self.assertNotIn("Name:", item["Remarks"])
+        self.assertNotIn("named_sig", alarms["VISTA_SERVER#21"])
+
+    def test_open_ticket_is_told_the_name_once_and_again_when_it_changes(self):
+        vid = "VISTA_SERVER#22"
+        sig = [0, 0, 0, "No user"]
+        inc = FakeIncident(ID=123, StatusID=5, Name="CTS Alarm - 320-01-TEST_A - Lav temperatur",
+                           Description="old line")
+        routes = {("GET", "/api/v3/incidents/123"): inc.get, ("PUT", "/api/v3/incidents"): inc.put}
+        self.names({"320-01-TEST_A": {"name": "Kølerum 2", "building": "Bygning A"}})
+        self.write([alr_row(vid)], {vid: self.entry(vid, 123, sig)})
+
+        rc, alarms, session, out = self.run_bot(routes)                  # 1: told once
+        self.assertEqual(rc, 0)
+        first = inc.item["Description"].split("\n")
+        self.assertRegex(first[0], r'Alarm bot - alarm point named on digibuild\.dk: '
+                                   r'"Kølerum 2" \(Building: Bygning A\)$')
+        self.assertEqual(first[1], "old line")
+        self.assertEqual(inc.item["Name"], "CTS Alarm - 320-01-TEST_A - Lav temperatur")  # title kept
+        self.assertTrue(any("NAMED incident 123" in m for m in out))
+        self.assertTrue(any("named=1" in m for m in out))
+        self.assertEqual(alarms[vid]["last_state_sig"], sig)            # no transition invented
+
+        _, _, session, out = self.run_bot(routes)                        # 2: nothing new
+        self.assertEqual(session.bodies("PUT", "/api/v3/incidents"), [])
+        self.assertTrue(any("named=0" in m for m in out))
+
+        self.names({"320-01-TEST_A": {"name": "Kølerum 3"}}, version="v2")   # 3: renamed
+        self.run_bot(routes)
+        self.assertIn('"Kølerum 3"', inc.item["Description"].split("\n")[0])
+
+    def test_dry_run_only_says_it_would_add_the_name(self):
+        vid = "VISTA_SERVER#23"
+        self.names({"320-01-TEST_A": {"name": "Kølerum 2"}})
+        self.write([alr_row(vid)], {vid: self.entry(vid, 123, [0, 0, 0, "No user"])})
+        before = self.state.read_bytes()
+        rc, _, session, out = self.run_bot({}, dry_run=True)
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertEqual([c[:2] for c in session.calls], [("POST", "/restapi/token")])
+        self.assertTrue(any("[DRY] Would add the name to incident 123" in m for m in out))
+
+    def test_a_broken_names_file_is_logged_and_ignored(self):
+        p = Path(self.tmp.name) / "names.json"
+        p.write_text("{not json", encoding="utf-8")
+        self.cfg["paths"]["names_file"] = str(p)
+        self.write([alr_row("VISTA_SERVER#24")], {})
+        rc, _, session, out = self.run_bot({
+            ("POST", "/api/v3/incidents"): items({"success": True, "id": 57}),
+            ("GET", "/api/v3/incidents/57"): items({"ID": 57, "StatusID": 5}),
+        })
+        self.assertEqual(rc, 0)
+        self.assertEqual(session.bodies("POST", "/api/v3/incidents")[0]["items"][0]["Name"],
+                         "CTS Alarm - 320-01-TEST_A - Brand fra ABA")
+        self.assertTrue(any("unreadable" in m for m in out))
+
     def test_parse_only_writes_nothing(self):
         vid = "VISTA_SERVER#11"
         self.write([alr_row(vid)], {})

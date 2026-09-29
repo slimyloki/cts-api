@@ -229,6 +229,21 @@ before its dry run. Git-ignored.
 Why: before v2.1.1 a wrong password made every pending transition try its own login, and after three runs abandon
 the transition. That was many failed logins every 5 minutes on an account the Indeklima bot shares.
 
+## `names.json`
+
+The alarm names from the digibuild catalogue (`paths.names_file`, default `names.json` next to `config.json`),
+since v2.2.0 ([ADR-0025](../adr/0025-alarm-names-from-digibuild.md)). Written by the shipper from the answer to an
+accepted batch, atomically and only when digibuild's `version` changes; read by the bot at the start of each run.
+
+```json
+{"version": "<16 hex>", "received": "2026-09-29T20:15:03+02:00",
+ "points": {"<Vista directory>": {"name": "…", "building": "…", "floor": "…", "system": "…"}}}
+```
+
+Only the fields that are set appear. It is a cache: deleting it only means new tickets use the object code until
+the next accepted batch rewrites it. A broken file is logged (`Alarm names file … unreadable`) and ignored.
+Git-ignored. The state entry of an alarm with a ticket records what that ticket was told in `named_sig`.
+
 ## `outbox.sqlite`
 
 The shipper's queue of batches the digibuild worker has not accepted yet (`vps.outbox_file`, default

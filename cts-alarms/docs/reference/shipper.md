@@ -110,14 +110,18 @@ dead  (id INTEGER PRIMARY KEY, created_iso TEXT, run_id TEXT, payload TEXT, atte
 Per run, in order:
 
 0. **Secret.** If neither the environment nor the secrets file has it, the current batch is queued
-   without a request (`last_error` = `not attempted: …`) and `ERROR VPS: no ingest secret (…) — run …
-   queued, N batches waiting` is logged. Nothing is lost while the secret is being set up.
+   without a request (`last_error` = `not attempted: …`) and `WARNING VPS: no ingest secret (…) — run …
+   queued, N batches waiting (install.cmd -IngestSecret)` is logged (an ERROR before v2.2.0). Nothing is lost
+   while the secret is being set up; `status.cmd` reports it as a problem.
 1. **Resend** up to `max_resend_per_run` queued batches, oldest first, each re-signed. 2xx → row
    deleted, `INFO VPS: resent queued run …`. Transient failure → `attempts` +1, `last_error` set,
    `WARNING … — stopping`, and **no further request this run** (server down → do not hammer; the
    current batch is queued straight away). Malformed (see 3) → moved to `dead`, loop continues.
 2. **Post the current run.** 2xx → `INFO VPS: shipped run <run_id> — N events, M snapshot rows, K
    incidents (HTTP 200)`.
+   **The answer's `names`** (v2.2.0, [ADR-0025](../adr/0025-alarm-names-from-digibuild.md)): after the posts,
+   the `names` of the last accepted answer are written to `names.json` when their `version` changed
+   (`save_names()`), and the bot uses them from its next run.
 3. **Classification** of a non-2xx (`_post()`, `shipper.py:315`):
    - connection error, timeout, 5xx, 403, 429, 3xx → `WARNING VPS: ship of run … failed: <reason> —
      queued`, retried on later runs;
@@ -164,17 +168,17 @@ deployed yet; `HTTP 200` = ready. The secret's value is never logged.
 ## Installing on the CTS server
 
 Prerequisite: the digibuild `cts-alarms` worker is live and `https://api.digibuild.dk/api/cts-alarms/healthz`
-answers `200` ([TODO T-092](../TODO.md)).
+answers `200` ([TODO T-092](../TODO.md)). Since v2.2.0 the switch-on is [TODO T-115](../TODO.md):
 
-1. Generate the shared secret once (e.g. on the VPS: `openssl rand -hex 32`). Put it in the worker's
-   environment file as `CTS_ALARMS_INGEST_SECRET` (digibuild install kit) — and nowhere in git.
-2. On the CTS server add it to `C:\priorityalarmsapi\secrets.json` as `"vps": {"ingest_secret": "…"}`
-   next to the `mainmanager` block (see `secrets.example.json`). The file is already restricted with
-   `icacls` to the task account and Administrators ([ADR-0021](../adr/0021-secrets-in-secrets-json.md)).
-3. Copy `shipper.py` next to `main.py` and deploy the `main.py` that logs `v2.1.x` in its start banner.
-4. Add the `"vps"` block above to `config.json` (keep the rest untouched).
-5. `python main.py --dry-run` and check for `[DRY] Would ship …`, `[DRY] VPS ingest secret: present`
-   and `… healthz -> HTTP 200`. Then let the task run and look for `VPS: shipped run … (HTTP 200)`.
+1. The ingest secret is generated once on the VPS (32 characters 0-9 a-f, so it can be typed) into the
+   worker's environment file as `CTS_ALARMS_INGEST_SECRET` (digibuild install kit) — and nowhere in git.
+2. The `"vps"` block above is committed to `config.json` in cts-api.
+3. On the CTS server the owner double-clicks `update.cmd`. The install sees the `vps` section, finds no
+   `vps.ingest_secret` in `C:\cts-api\cts-alarms\secrets.json` and asks for it (twice, hidden; spaces and
+   dashes ignored). Later changes: `install.cmd -IngestSecret`.
+4. The install's dry run must show `[DRY] Would ship …`, `[DRY] VPS ingest secret: present` and
+   `… healthz -> HTTP 200` (echoed after `test run clean`). Then the real run logs
+   `VPS: shipped run … (HTTP 200)` and, with the first answer, `VPS: alarm names updated -- …`.
    `HTTP 401` → secret mismatch or clock; `ConnectionError` → the CTS firewall blocks outbound HTTPS
    to api.digibuild.dk — batches queue in the outbox meanwhile and are resent once the route works.
 6. The scheduled task needs no change; its 5-minute limit is respected by the time budget.

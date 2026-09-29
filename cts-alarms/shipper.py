@@ -76,11 +76,12 @@ ALARM_FIELDS = ("vista_id", "alarm_object", "directory", "alarm_text",
 
 class ShipperConfig:
     __slots__ = ("base_url", "secrets_file", "outbox_file", "timeout_seconds",
-                 "max_resend_per_run", "time_budget_seconds")
+                 "max_resend_per_run", "time_budget_seconds", "names_file")
 
     def __init__(self, *, base_url: str, secrets_file: str, outbox_file: str,
                  timeout_seconds: float, max_resend_per_run: int,
-                 time_budget_seconds: float):
+                 time_budget_seconds: float, names_file: str = ""):
+        self.names_file          = names_file
         self.base_url            = base_url
         self.secrets_file        = secrets_file
         self.outbox_file         = outbox_file
@@ -121,6 +122,7 @@ def load_shipper_config(cfg: dict) -> Optional[ShipperConfig]:
         timeout_seconds     = float(vps.get("timeout_seconds", 20)),
         max_resend_per_run  = max(0, int(vps.get("max_resend_per_run", 20))),
         time_budget_seconds = float(vps.get("time_budget_seconds", 120)),
+        names_file          = _resolve(cfg, str(paths.get("names_file") or "names.json")),
     )
 
 
@@ -321,8 +323,19 @@ def _scrub(text: str, secret: str) -> str:
     return text.replace(secret, "***") if secret else text
 
 
-def _post(shcfg: ShipperConfig, secret: str, payload: str) -> tuple[str, str]:
+def _answer(r: Any) -> Optional[dict]:
+    """The JSON of a 2xx answer, or None (never raises)."""
+    try:
+        data = r.json()
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _post(shcfg: ShipperConfig, secret: str, payload: str,
+          answers: Optional[list] = None) -> tuple[str, str]:
     """POST one JSON payload, freshly signed. Returns (OK|RETRY|DEAD, detail).
+    The JSON of an accepted answer is appended to `answers` when given.
     RETRY = transient or auth problem (network, timeout, 5xx, 401/403/404/429);
     DEAD  = the server rejected the batch as malformed (other 4xx).
     404 is retried: it means the route is not deployed yet, not a bad batch."""
@@ -341,6 +354,10 @@ def _post(shcfg: ShipperConfig, secret: str, payload: str) -> tuple[str, str]:
     code = r.status_code
     text = _scrub((r.text or "")[:MAX_RESPONSE_TEXT], secret)
     if 200 <= code < 300:
+        if answers is not None:
+            data = _answer(r)
+            if data is not None:
+                answers.append(data)
         return OK, f"HTTP {code}"
     if code == 401:
         return RETRY, (f"HTTP 401: {text} (check vps.ingest_secret and that "
@@ -358,6 +375,54 @@ def probe(shcfg: ShipperConfig) -> str:
         return f"HTTP {r.status_code}"
     except requests.RequestException as e:
         return f"unreachable ({type(e).__name__})"
+
+
+# ---------------------------------------------------------------------------
+# Alarm names from digibuild (ADR-0025)
+# ---------------------------------------------------------------------------
+
+NAME_KEYS = ("name", "building", "floor", "system")
+
+
+def save_names(path: str, names: Any, log: logging.Logger) -> bool:
+    """Write digibuild's answer `names` ({version, points: [{directory, ...}]})
+    to names.json, which main.load_names() reads next run. Only when the
+    version changed; atomic (tmp + replace). Never raises. True if written."""
+    try:
+        if not path or not isinstance(names, dict):
+            return False
+        version = str(names.get("version") or "")
+        rows = names.get("points")
+        if not version or not isinstance(rows, list):
+            return False
+        points: dict = {}
+        for row in rows:
+            if not isinstance(row, dict) or not isinstance(row.get("directory"), str):
+                continue
+            entry = {k: row[k].strip() for k in NAME_KEYS
+                     if isinstance(row.get(k), str) and row[k].strip()}
+            if entry:
+                points[row["directory"]] = entry
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    if (json.load(f) or {}).get("version") == version:
+                        return False
+            except Exception:
+                pass                    # unreadable: overwrite it
+        doc = {"version": version,
+               "received": datetime.now().astimezone().isoformat(timespec="seconds"),
+               "points": points}
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(doc, f, ensure_ascii=False, indent=1, sort_keys=True)
+        os.replace(tmp, path)
+        log.info(f"VPS: alarm names updated -- {len(points)} named points "
+                 f"(version {version}), used from the next run")
+        return True
+    except Exception as e:
+        log.warning(f"VPS: could not save alarm names to {path}: {e}")
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -382,14 +447,15 @@ def ship(batch: dict, shcfg: ShipperConfig, log: logging.Logger) -> bool:
         return time.monotonic() - t0 > shcfg.time_budget_seconds
 
     conn = open_outbox(shcfg.outbox_file)
+    answers: list = []
     try:
         try:
             secret = read_ingest_secret(shcfg)
         except (OSError, ValueError) as e:
             _enqueue(conn, run_id, payload, f"not attempted: {e}")
             queued, _ = outbox_counts(conn)
-            log.error(f"VPS: no ingest secret ({e}) — run {run_id} queued, "
-                      f"{queued} batches waiting")
+            log.warning(f"VPS: no ingest secret ({e}) — run {run_id} queued, "
+                        f"{queued} batches waiting (install.cmd -IngestSecret)")
             return False
 
         # ---- 1. Resend queued batches, oldest first ---------------------
@@ -403,7 +469,7 @@ def ship(batch: dict, shcfg: ShipperConfig, log: logging.Logger) -> bool:
                     log.warning("VPS: time budget exhausted — resend stopped")
                     server_down = True
                     break
-                status, detail = _post(shcfg, secret, opayload)
+                status, detail = _post(shcfg, secret, opayload, answers)
                 if status == OK:
                     conn.execute("DELETE FROM outbox WHERE id = ?", (oid,))
                     conn.commit()
@@ -430,7 +496,7 @@ def ship(batch: dict, shcfg: ShipperConfig, log: logging.Logger) -> bool:
             log.warning(f"VPS: run {run_id} queued without attempt "
                         f"(server unreachable this run)")
         else:
-            status, detail = _post(shcfg, secret, payload)
+            status, detail = _post(shcfg, secret, payload, answers)
             if status == OK:
                 accepted = True
                 log.info(f"VPS: shipped run {run_id} — {len(batch['events'])} events, "
@@ -448,6 +514,9 @@ def ship(batch: dict, shcfg: ShipperConfig, log: logging.Logger) -> bool:
         if queued or dead:
             log.info(f"VPS: outbox has {queued} queued, {dead} dead batches "
                      f"({shcfg.outbox_file})")
+        named = [a["names"] for a in answers if "names" in a]
+        if named:
+            save_names(shcfg.names_file, named[-1], log)
         return accepted
     finally:
         conn.close()

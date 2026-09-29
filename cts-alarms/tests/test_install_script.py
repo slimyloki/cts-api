@@ -129,6 +129,28 @@ class InstallScriptTests(unittest.TestCase):
             self.assertEqual(out.stdout.split(), ["auto=\\TacVistaMails\\Alarm_Bot;1", "byname=1", "missing=0", "two=2"],
                              f.name + ": " + out.stdout + out.stderr)
 
+    def test_ingest_secret_is_asked_hidden_normalised_and_never_shown(self):
+        t = self.text
+        self.assertIn("[switch]$IngestSecret", t)
+        self.assertIn('if ($IngestSecret) { $argv += "-IngestSecret" }', t)       # survives -Download
+        self.assertIn('Read-Host "  Ingest secret" -AsSecureString', t)
+        self.assertIn('Read-Host "  Ingest secret again" -AsSecureString', t)
+        self.assertIn("-replace '[\\s-]', '').ToLowerInvariant()", t)
+        self.assertIn("'^[0-9a-f]{32,}$'", t)
+        self.assertIn('$vpsObj["ingest_secret"] = $val', t)
+        # asked only when config.json turns shipping on and none is set, or on request
+        self.assertIn("if ($IngestSecret -or ($shipOn -and -not $haveIngest))", t)
+        # skipping never stops the install: tickets keep being created
+        self.assertIn("runs are queued on this server until install.cmd -IngestSecret", t)
+        for leak in ("Write-Host $val", "Write-Host $n1", "Ok $val", "$val\"", "Say $val"):
+            self.assertNotIn(leak, t)
+
+    def test_status_reports_the_shipper_and_the_alarm_names(self):
+        st = (ROOT / "status.ps1").read_text("ascii")
+        self.assertIn('"digibuild shipper"', st)
+        self.assertIn("install.cmd -IngestSecret", st)
+        self.assertIn('Join-Path $App "names.json"', st)
+
     def test_status_does_not_count_readable_secrets_as_a_problem(self):
         # Owner, 2026-09-29: other Windows users on the server may read secrets.json.
         st = (ROOT / "status.ps1").read_text("ascii")

@@ -31,6 +31,8 @@ config.json.*
 /alarms_state.json
 /csv_state.json
 /alarm_snapshot.alr
+# alarm names cached from digibuild's ingest answer (ADR-0025) -- rebuilt by the shipper
+/names.json
 /csv/
 /logs/
 outbox.sqlite*

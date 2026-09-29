@@ -167,7 +167,7 @@ def test_run_csv_logging_returns_written_events(tmp_path):
 
 
 def test_version_banner(bot_cfg, tmp_path, caplog):
-    assert main.__version__ == "2.1.1"
+    assert main.__version__ == "2.2.0"
     cfg_path = write_cfg(tmp_path, bot_cfg)
     with caplog.at_level(logging.INFO, logger="alarmbot"):
         rc = main.main(["--config", cfg_path, "--parse-only"])

@@ -471,13 +471,15 @@ def test_missing_secret_queues_and_sends_nothing(vps_cfg, monkeypatch, caplog, c
     fake = FakePost(200)
     monkeypatch.setattr(shipper.requests, "post", fake)
     b = sample_batch()
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.WARNING):
         assert shipper.ship(b, shcfg, LOGGER) is False
     assert fake.calls == []
     rows = outbox_rows(shcfg.outbox_file)
     assert [r[0] for r in rows] == [b["run"]["run_id"]]
     assert rows[0][2].startswith("not attempted:")
-    assert "no ingest secret" in caplog.text
+    assert "no ingest secret" in caplog.text and "install.cmd -IngestSecret" in caplog.text
+    # a WARNING, not an ERROR: status.cmd reports it once, as its own problem
+    assert all(r.levelno == logging.WARNING for r in caplog.records if "no ingest secret" in r.getMessage())
 
 
 def test_relative_secrets_file_is_next_to_config_json(vps_cfg, tmp_path):
@@ -536,3 +538,59 @@ def test_ship_run_dry_run_reports_missing_secret_and_unreachable(vps_cfg, monkey
         shipper.ship_run(vps_cfg, sample_run_meta(now, dry_run=True), [], [], {}, LOGGER)
     assert "[DRY] VPS ingest secret: MISSING" in caplog.text
     assert "healthz -> unreachable (ConnectionError)" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Alarm names on the ingest answer (ADR-0025)
+# ---------------------------------------------------------------------------
+
+class JsonResponse(FakeResponse):
+    def __init__(self, status_code, body):
+        super().__init__(status_code, json.dumps(body))
+        self._body = body
+
+    def json(self):
+        return self._body
+
+
+NAMES = {"version": "abcdef0123456789", "points": [
+    {"directory": "VISTA_SERVER-Bygning_A-Rum_AL", "name": " Kølerum 2 ", "building": "Bygning A"},
+    {"directory": "BAD"},                                   # nothing set: left out
+    {"name": "no directory"},                               # malformed: skipped
+]}
+
+
+def test_accepted_answer_names_are_saved_for_the_bot(vps_cfg, tmp_path, monkeypatch, caplog):
+    vps_cfg["paths"]["names_file"] = str(tmp_path / "names.json")
+    answer = {"run_id": "x", "names": NAMES}
+    monkeypatch.setattr(shipper.requests, "post", lambda *a, **k: JsonResponse(200, answer))
+    shcfg = shipper.load_shipper_config(vps_cfg)
+    with caplog.at_level(logging.INFO, logger=LOGGER.name):
+        assert shipper.ship(sample_batch(), shcfg, LOGGER) is True
+    saved = json.loads((tmp_path / "names.json").read_text(encoding="utf-8"))
+    assert saved["version"] == "abcdef0123456789"
+    assert saved["points"] == {"VISTA_SERVER-Bygning_A-Rum_AL": {"name": "Kølerum 2",
+                                                                 "building": "Bygning A"}}
+    assert "alarm names updated -- 1 named points" in caplog.text
+    # ...and the bot reads exactly that.
+    assert main.load_names(str(tmp_path / "names.json"), LOGGER) == saved["points"]
+
+    # Same version again: the file is not rewritten.
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger=LOGGER.name):
+        shipper.ship(sample_batch(), shcfg, LOGGER)
+    assert "alarm names updated" not in caplog.text
+
+
+def test_names_file_defaults_next_to_the_config(vps_cfg, tmp_path):
+    vps_cfg["_config_dir"] = str(tmp_path)
+    assert shipper.load_shipper_config(vps_cfg).names_file == str(tmp_path / "names.json")
+
+
+def test_an_answer_without_names_or_json_changes_nothing(vps_cfg, tmp_path, monkeypatch):
+    vps_cfg["paths"]["names_file"] = str(tmp_path / "names.json")
+    monkeypatch.setattr(shipper.requests, "post", FakePost(200))     # no .json() at all
+    assert shipper.ship(sample_batch(), shipper.load_shipper_config(vps_cfg), LOGGER) is True
+    assert not (tmp_path / "names.json").exists()
+    assert shipper.save_names(str(tmp_path / "names.json"), {"points": []}, LOGGER) is False
+    assert shipper.save_names(str(tmp_path / "names.json"), "junk", LOGGER) is False

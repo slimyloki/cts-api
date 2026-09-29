@@ -26,7 +26,7 @@ The first install moves its data over and renames it to `C:\priorityalarmsapi.re
    - **Password:** type the **new** MainManager password twice. It is not shown while you type.
    - **"Enable the task and start one real run now? [Y/n]":** press Enter for yes.
 3. Read the end of the window. Success is the line **`OK  real run complete, nothing deferred, no errors`**, then
-   **`Done. v2.1.1 runs from C:\cts-api\cts-alarms and the task is enabled.`**
+   **`Done. v2.2.0 runs from C:\cts-api\cts-alarms and the task is enabled.`**
 
 On this first run it also moves `alarms_state.json`, `csv_state.json`, `csv\`, `logs\` and an existing
 `secrets.json` from `C:\priorityalarmsapi` into `C:\cts-api\cts-alarms`. After the test run has passed, it renames
@@ -58,6 +58,7 @@ Then one of these:
 | `install.cmd -ResetSecrets` | The password was changed again, or the window or `status.cmd` said the login was rejected. |
 | `install.cmd -Rollback` | Go back to the code from before the last install. State, logs and `secrets.json` stay. |
 | `install.cmd -NoEnable` | Install and test, but leave the task switched off. |
+| `install.cmd -IngestSecret` | Type the digibuild ingest secret (32 characters, shown on the VPS). The install also asks for it once, by itself, when shipping to digibuild is switched on. |
 | `install.cmd -TaskPath \TacVistaMails -TaskName Alarm_Bot` | The window said it found no task, or more than one. This names the task by hand. |
 
 ## What stays out of Git

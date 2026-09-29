@@ -30,4 +30,4 @@ Three files per runbook, same stem, `<yyyy-mm-dd>-<short-name>`:
 
 | Runbook | Purpose | Status |
 |---|---|---|
-| — | none yet | — |
+| [2026-09-29-internet-address](2026-09-29-internet-address.md) | Read-only: the CTS server's internet address (for digibuild's allow-list), whether `api.digibuild.dk` answers, and the clock difference | ready |

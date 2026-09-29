@@ -44,6 +44,13 @@ v2.0.0 … v2.1.0, which the historical logs cannot contain.
 | WARNING | `MainManager rejected the login — no new attempt for 30 min unless the credentials change (mm_auth_failed.json)` | `record_auth_rejection()` | v2.1.1, HTTP 400/401/403 only. |
 | ERROR | `MainManager API unusable this run: MainManager login skipped: rejected {n} min ago (…); next try in {m} min, or at once when the credentials change — …` | `run()` | v2.1.1 backoff; see `reference/state-files.md` → `mm_auth_failed.json`. |
 | INFO | `MainManager login OK again — backoff cleared` | `run()` | v2.1.1 |
+| INFO | `Loaded {n} alarm names from {path}` | `run()` | v2.2.0; only when `names.json` has names. |
+| WARNING | `Alarm names file {path} unreadable -- no names this run: {error}` | `load_names()` | v2.2.0 |
+| INFO | `NAMED incident {id} for {vista_id}: {line}` | `run()` | v2.2.0; the one line an open ticket gets when its point is named ([ADR-0025](../adr/0025-alarm-names-from-digibuild.md)). |
+| ERROR | `NameIncident FAILED for {vista_id} (incident #{id}): {error} -- retried next run` | `run()` | v2.2.0 |
+| INFO | `[DRY] Would add the name to incident {id}: {line}` | `run()` | v2.2.0 |
+| INFO | `VPS: alarm names updated -- {n} named points (version {v}), used from the next run` | `shipper.save_names()` | v2.2.0 |
+| WARNING | `VPS: no ingest secret (…) — run {run_id} queued, {n} batches waiting (install.cmd -IngestSecret)` | `shipper.ship()` | v2.2.0: a WARNING (was ERROR); `status.cmd` reports it. |
 | INFO | `Credentials: from environment (MM_USERNAME/MM_PASSWORD)` / `Credentials: from {secrets_file}` | 70 / 78 | new |
 | WARNING | `{secrets_file}: mainmanager.username/password missing` | 80 | new — file exists but has no pair |
 | WARNING | `Credentials: from config.json — DEPRECATED, move them to {secrets_file}` | 84 | new — legacy pair still in `config.json` |
@@ -149,7 +156,7 @@ This table is the bulk of the log volume (≈80 %) and is redundant with the sta
 |---|---|---|---|
 | INFO | `Pruned {n} resolved entries older than {d} days` | 350 | 36 |
 | INFO | `[DRY] nothing written (state, CSV and MainManager untouched)` | 1336 | new — every `--dry-run` |
-| INFO | `Run complete: created={c}, updated={u}, resolved={r}, unchanged={s}, deferred={d}` | 1341 | **`deferred=` is new** (v1 ended at `unchanged=`; 45,610). `deferred` counts actions skipped because the API was unusable; they are retried next run. |
+| INFO | `Run complete: created={c}, updated={u}, resolved={r}, unchanged={s}, deferred={d}, named={n}` | 1341 | **`deferred=` is new** (v1 ended at `unchanged=`; 45,610). `deferred` counts actions skipped because the API was unusable; they are retried next run. `named=` since v2.2.0: open tickets told their point's name this run. |
 
 ### MainManager client (`MMClient`, `main.py:624`)
 

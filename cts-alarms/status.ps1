@@ -101,6 +101,26 @@ if (-not (Test-Path $sec)) {
     Line "secrets.json" ("present, username+password " + $(if ($ok) { "set" } else { "NOT set" }) + $(if ($open.Count) { ", other Windows users can read it (allowed)" } else { ", locked" }))
     if (-not $ok) { Problem "secrets.json has no MainManager username/password." "Double-click install.cmd." }
 }
+# The digibuild shipper (config.json "vps") and the alarm names it brings back.
+$cfgObj = $null
+try { $cfgObj = Get-Content (Join-Path $App "config.json") -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $cfgObj = $null }
+if ($cfgObj -and $cfgObj.vps -and ($cfgObj.vps.enabled -ne $false)) {
+    $hasIngest = $false
+    try { $hasIngest = [bool]((Get-Content $sec -Raw -Encoding UTF8 | ConvertFrom-Json).vps.ingest_secret) } catch { $hasIngest = $false }
+    Line "digibuild shipper" $(if ($hasIngest) { "on (ingest secret set)" } else { "on, but NO ingest secret" })
+    if (-not $hasIngest) { Problem "The digibuild shipper has no ingest secret; runs are queued on this server." "Type in Command Prompt (Admin) in this folder: install.cmd -IngestSecret" }
+} else {
+    Line "digibuild shipper" "off (no vps section in config.json)"
+}
+$namesFile = Join-Path $App "names.json"
+if (Test-Path $namesFile) {
+    try {
+        $nj = Get-Content $namesFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        Line "alarm names" ("{0} named points from digibuild, received {1}" -f @($nj.points.PSObject.Properties).Count, $nj.received)
+    } catch { Line "alarm names" "names.json unreadable (the bot ignores it; the next shipped run rewrites it)" }
+} else {
+    Line "alarm names" "none yet (they arrive with the first shipped run)"
+}
 foreach ($f in @("alarms_state.json", "csv_state.json")) {
     $p = Join-Path $App $f
     Line $f $(if (Test-Path $p) { "present, changed " + (Get-Item $p).LastWriteTime.ToString("yyyy-MM-dd HH:mm") } else { "missing" })
@@ -138,6 +158,8 @@ if (-not (Test-Path $log)) {
         if ($cred) { Line "credentials" ($cred -replace '^.*Credentials:\s*', '') }
         $auth = @($run | Where-Object { $_ -like "*API AUTH: HTTP*" } | ForEach-Object { ($_ -replace '^.*API AUTH: HTTP\s*', '').Trim() })
         Line "MainManager login" $(if ($auth.Count) { "HTTP " + ($auth -join ", ") } else { "cached token (no new login)" })
+        $vpsLine = $run | Where-Object { $_ -like "*VPS: *" } | Select-Object -Last 1
+        if ($vpsLine) { Line "digibuild" ($vpsLine -replace '^.*VPS:\s*', '') }
         $errs = @($run | Where-Object { $_ -match '\bERROR\b' })
         Line "errors in that run" $errs.Count
         $done = $run | Where-Object { $_ -like "*Run complete:*" } | Select-Object -Last 1

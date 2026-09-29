@@ -76,6 +76,7 @@ History: 3 from 2026-04-17 until 2026-04-21 16:57, then 2 ([ADR-0007](../adr/000
 | `paths.csv_state_file` | string, optional | `C:\priorityalarmsapi\csv_state.json` | CSV-audit state ([state-files.md](state-files.md#csv_statejson)) | `main.py:1048` |
 | `paths.log_folder` | string | `C:\priorityalarmsapi\logs` | daily log files; created if missing | `main.py:1365` → `setup_logging()` |
 | `paths.secrets_file` | string, optional | `secrets.json` (relative: next to `config.json`, v2.1.1) | where the credentials and the ingest secret are read from; absolute paths are used as they are | `load_secrets()`/`resolve_path()`, `shipper.load_shipper_config()` |
+| `paths.names_file` | string, optional | `names.json` (relative: next to `config.json`, v2.2.0) | the alarm names from digibuild: written by the shipper from the ingest answer, read by the bot at the start of each run ([ADR-0025](../adr/0025-alarm-names-from-digibuild.md)) | `load_names()`, `shipper.save_names()` |
 
 ### `mainmanager`
 

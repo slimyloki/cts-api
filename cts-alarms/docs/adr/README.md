@@ -39,6 +39,7 @@ explicitly deferred. ADRs record what was decided, what is still open, and why.
 | [0022](0022-cts-side-only-repo-web-app-in-digibuild.md) | This repo holds the CTS side only; the web app is the digibuild sub-project | Accepted (2026-09-29) |
 | [0023](0023-moved-into-cts-api.md) | The alarm bot's code moves into the cts-api repository | Accepted |
 | [0024](0024-run-in-place-from-cts-api.md) | The bot runs in place from C:\cts-api\cts-alarms; C:\priorityalarmsapi is retired | Accepted |
+| [0025](0025-alarm-names-from-digibuild.md) | New tickets carry the alarm point's name from digibuild | Accepted |
 
 ADRs 0002–0013 document decisions that predate this log; they were reconstructed from `main.py`,
 `config.json`, `TACVista_Alarm_Bot.xml` and `Alarm_bot_build_reference.md` on 2026-09-28. Their
