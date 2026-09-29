@@ -16,7 +16,7 @@ Related: [state-files.md](state-files.md) · [mainmanager-api.md](mainmanager-ap
 
 | | `config.json` | `secrets.json` |
 |---|---|---|
-| Default path | `config.json` **in the folder of `main.py`** since v2.1.1 (`DEFAULT_CONFIG_PATH`): on the CTS server `C:\cts-api\cts-alarms\config.json` (the bot runs in place, ADR-0024). Every relative path under `paths` is relative to that folder. Before v2.1.1 it was always `C:\priorityalarmsapi\config.json` with absolute paths. | `paths.secrets_file`, `"secrets.json"` in the committed config: a relative path is relative to the folder of `config.json` (v2.1.1). `DEFAULT_SECRETS_PATH` (`C:\priorityalarmsapi\secrets.json`) is used only when a config names none. |
+| Default path | `config.json` **in the folder of `main.py`** since v2.1.1 (`DEFAULT_CONFIG_PATH`): on the CTS server `C:\cts-api\cts-alarms\config.json` (the bot runs in place, ADR-0024). Every relative path under `paths` is relative to that folder. Before v2.1.1 it was always `C:\priorityalarmsapi\config.json` with absolute paths. | `paths.secrets_file`, `"secrets.json"` in the committed config: a relative path is relative to the folder of `config.json` (v2.1.1). `DEFAULT_SECRETS_PATH` (`"secrets.json"`, also next to `config.json`) is used only when a config names none. |
 | Override | `--config <path>` | the `paths.secrets_file` key, or environment variables (below) |
 | In the repo | yes (the deployed copy; no secrets) | **no** — `secrets.example.json` shows the shape |
 | Encoding | UTF-8, a BOM is tolerated (`utf-8-sig`) | same |

@@ -28,7 +28,7 @@ Write-Host "Alarm bot status  $(Get-Date -Format 'yyyy-MM-dd HH:mm')" -Foregroun
 # --- the task ---------------------------------------------------------------
 $task = Get-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction SilentlyContinue
 if (-not $task) {
-    Problem "Scheduled task $TaskPath$TaskName not found." "Recreate it (ask Claude for a runbook)."
+    Problem "Scheduled task $TaskPath$TaskName not found." "Recreate it: it is needed before install.cmd can run (report it)."
 } else {
     $info = Get-ScheduledTaskInfo -TaskPath $TaskPath -TaskName $TaskName
     $act  = $task.Actions | Select-Object -First 1
@@ -122,7 +122,7 @@ if (-not (Test-Path $log)) {
         if ($errs.Count -gt 0) {
             Write-Host "  error lines:" -ForegroundColor Yellow
             $errs | Select-Object -Last 5 | ForEach-Object { Write-Host "    $_" }
-            if (-not $problems.Count) { Problem "The last run logged $($errs.Count) error(s)." "Read the error lines above; tell Claude what they say." }
+            if (-not $problems.Count) { Problem "The last run logged $($errs.Count) error(s)." "Read the error lines above and report what they say." }
         }
         if ($done -and $done -notlike "*deferred=0*") { Problem "Some actions were deferred: $($done -replace '^.*Run complete:\s*', '')." "They are retried on the next run; if it stays, read the error lines." }
     }

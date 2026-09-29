@@ -211,7 +211,7 @@ Written by `MMClient._get_token()` (`main.py:665`) into the working folder on ev
 
 ## `mm_auth_failed.json`
 
-Written in the working folder (`paths.working_folder`, `C:\priorityalarmsapi`) since v2.1.1, only when MainManager
+Written in the working folder (`paths.working_folder`, `.` = `C:\cts-api\cts-alarms`) since v2.1.1, only when MainManager
 **rejects** the login with HTTP 400, 401 or 403. A network error or HTTP 5xx never writes it. It holds no secret:
 
 | Key | Meaning |

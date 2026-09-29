@@ -344,7 +344,7 @@ if ((Test-Path $oldState) -and -not (Test-Path (Join-Path $App "alarms_state.jso
         $n = Join-Path $App $f
         if ((Test-Path $o) -and (Test-Path $n) -and ((Get-FileHash $o).Hash -ne (Get-FileHash $n).Hash)) {
             Copy-Item $o $n -Force
-            Warn "$f on the server differed from the repo; the server's version is kept (git will show it as changed -- tell Claude)"
+            Warn "$f on the server differed from the repo; the server's version is kept (git will show it as changed -- report it so the repo gets the same file)"
         }
     }
     foreach ($f in $StateFiles) {

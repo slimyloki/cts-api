@@ -155,6 +155,24 @@ class RepoScopeTests(unittest.TestCase):
                         bad.append(f"{p}: a denied word (internal hostname or third-party name)")
         self.assertEqual(sorted(set(bad)), [])
 
+    def test_every_runtime_file_is_git_ignored(self):
+        # Applications run in place from their folder on the CTS server, so their
+        # runtime files sit inside the repo working tree: each must be ignored.
+        runtime = {
+            "cts-alarms": ["secrets.json", "alarms_state.json", "csv_state.json", "csv/x.csv",
+                           "logs/x.log", "mm_token.json", "mm_auth_failed.json", "outbox.sqlite",
+                           "alarm_snapshot.alr"],
+        }
+        missing = []
+        for app, names in runtime.items():
+            if not (ROOT / app).is_dir():
+                continue
+            for n in names:
+                r = subprocess.run(["git", "-C", str(ROOT), "check-ignore", "-q", f"{app}/{n}"])
+                if r.returncode != 0:
+                    missing.append(f"{app}/{n}")
+        self.assertEqual(missing, [])
+
     def test_windows_scripts_are_safe_for_windows(self):
         for p in self.files:
             f = ROOT / p

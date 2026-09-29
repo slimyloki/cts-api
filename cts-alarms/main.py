@@ -54,14 +54,14 @@ DEFAULT_CONFIG_PATH  = str(Path(__file__).resolve().parent / "config.json")
 # Used only when a config names no paths.secrets_file: next to config.json.
 DEFAULT_SECRETS_PATH = "secrets.json"
 
-# After MainManager REJECTS the login (HTTP 400/401/403 from /restapi/token) the
-# bot stops trying for this long, unless the credential file changes: one wrong
-# password must not lock the account (shared with the Indeklima bot).
 # The bot used to run from C:\priorityalarmsapi. Until install.ps1 has moved its
 # state into the bot's own folder, a run there must not start from scratch
 # (a bootstrap would drop the link to every open ticket): it stops instead.
 LEGACY_STATE_FILE = r"C:\priorityalarmsapi\alarms_state.json"
 
+# After MainManager REJECTS the login (HTTP 400/401/403 from /restapi/token) the
+# bot stops trying for this long, unless the credential file changes: one wrong
+# password must not lock the account (shared with the Indeklima bot).
 AUTH_BACKOFF_S = 30 * 60
 AUTH_MARKER    = "mm_auth_failed.json"      # in the working folder
 
