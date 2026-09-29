@@ -209,6 +209,26 @@ Written by `MMClient._get_token()` (`main.py:665`) into the working folder on ev
   dry run that must prove a rotated password ([TODO T-108](../TODO.md)).
 - Unreadable/corrupt file → ignored, a new token is requested; unwritable → `WARNING API AUTH: token cache not writable`.
 
+## `mm_auth_failed.json`
+
+Written in the working folder (`paths.working_folder`, `C:\priorityalarmsapi`) since v2.1.1, only when MainManager
+**rejects** the login with HTTP 400, 401 or 403. A network error or HTTP 5xx never writes it. It holds no secret:
+
+| Key | Meaning |
+|---|---|
+| `at` | Unix time of the rejection |
+| `error` | The error text, at most 200 characters, e.g. `400 Client Error: Bad Request for url: …/restapi/token` |
+| `source_kind`, `source_path`, `source_mtime` | Where the rejected credentials came from (`file` / `config` / `env`) and that file's modification time |
+
+While it is younger than 30 minutes (`AUTH_BACKOFF_S`) **and** the credential file's modification time is
+unchanged, every real run skips the login. It logs `MainManager API unusable this run: MainManager login skipped: …`,
+sends nothing and leaves the state untouched (`deferred=N`). A changed `secrets.json` is tried on the very next
+run. A successful login deletes the file (`MainManager login OK again — backoff cleared`). `install.ps1` deletes it
+before its dry run. Git-ignored.
+
+Why: before v2.1.1 a wrong password made every pending transition try its own login, and after three runs abandon
+the transition. That was many failed logins every 5 minutes on an account the Indeklima bot shares.
+
 ## `outbox.sqlite`
 
 The shipper's queue of batches the digibuild worker has not accepted yet (`vps.outbox_file`, default

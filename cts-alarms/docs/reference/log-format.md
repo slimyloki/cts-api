@@ -39,7 +39,11 @@ v2.0.0 … v2.1.0, which the historical logs cannot contain.
 |---|---|---|---|
 | stderr | `Config load failed ({path}): {e}` | 1362 | config unreadable → exit 2. 0 |
 | INFO | `======================================================================` | 1366 | run separator. 45,612 |
-| INFO | `Alarm bot started (v{version}, dry_run={b}, parse_only={b}, no_bootstrap={b})` | 1367 | **new format** (v1: `Alarm bot started (dry_run=…, parse_only=…, no_bootstrap=…)`, 45,610). The version ties every log line to the deployed code. |
+| INFO | `Alarm bot started (v{version}, config={path}, dry_run={b}, parse_only={b}, no_bootstrap={b})` | `main()` | `config=` since v2.1.1: the config file actually used (in place `C:\cts-api\cts-alarms\config.json`, or the copied one). v2.0.x/2.1.0 had no `config=`; v1: `Alarm bot started (dry_run=…, parse_only=…, no_bootstrap=…)`, 45,610. |
+| ERROR | `MainManager API unusable this run: MainManager login failed: {error} — alarms are tracked, nothing is sent, state left untouched` | `run()` | v2.1.1: the one login check per real run failed; every action is deferred, none is abandoned. |
+| WARNING | `MainManager rejected the login — no new attempt for 30 min unless the credentials change (mm_auth_failed.json)` | `record_auth_rejection()` | v2.1.1, HTTP 400/401/403 only. |
+| ERROR | `MainManager API unusable this run: MainManager login skipped: rejected {n} min ago (…); next try in {m} min, or at once when the credentials change — …` | `run()` | v2.1.1 backoff; see `reference/state-files.md` → `mm_auth_failed.json`. |
+| INFO | `MainManager login OK again — backoff cleared` | `run()` | v2.1.1 |
 | INFO | `Credentials: from environment (MM_USERNAME/MM_PASSWORD)` / `Credentials: from {secrets_file}` | 70 / 78 | new |
 | WARNING | `{secrets_file}: mainmanager.username/password missing` | 80 | new — file exists but has no pair |
 | WARNING | `Credentials: from config.json — DEPRECATED, move them to {secrets_file}` | 84 | new — legacy pair still in `config.json` |

@@ -5,20 +5,21 @@
     },
 
     "paths": {
+        "_comment": "Relative paths are relative to the folder of this config.json (C:\\cts-api\\cts-alarms on the CTS server): config, secrets, state, CSV audit trail and logs all live there. Only the Vista alarm file is absolute.",
         "vista_alarm_file": "C:\\ProgramData\\Schneider Electric\\TAC Vista 5.1.9\\DB\\$thisdb\\$this.alr",
-        "objects_csv":      "C:\\priorityalarmsapi\\objects.csv",
-        "exceptions_csv":   "C:\\priorityalarmsapi\\exceptions.csv",
-        "working_folder":   "C:\\priorityalarmsapi",
-        "state_file":       "C:\\priorityalarmsapi\\alarms_state.json",
-        "csv_folder":       "C:\\priorityalarmsapi\\csv",
-        "csv_state_file":   "C:\\priorityalarmsapi\\csv_state.json",
-        "log_folder":       "C:\\priorityalarmsapi\\logs",
-        "secrets_file":     "C:\\priorityalarmsapi\\secrets.json"
+        "objects_csv":      "objects.csv",
+        "exceptions_csv":   "exceptions.csv",
+        "working_folder":   ".",
+        "state_file":       "alarms_state.json",
+        "csv_folder":       "csv",
+        "csv_state_file":   "csv_state.json",
+        "log_folder":       "logs",
+        "secrets_file":     "secrets.json"
     },
 
     "mainmanager": {
         "base_url": "https://rambollfm.mainmanager.dk",
-        "_comment": "Credentials live in secrets.json (paths.secrets_file) or MM_USERNAME/MM_PASSWORD — never in this file. See secrets.example.json.",
+        "_comment": "Credentials live in secrets.json next to this config.json (paths.secrets_file; a relative path is relative to this file's folder) or in MM_USERNAME/MM_PASSWORD — never in this file. See secrets.example.json.",
         "default_main_id": 14228,
         "incident_defaults": {
             "_comment": "v3 write model (POST/PUT /api/v3/incidents). IncidentTypeID 277 = 'CTS API' (was CheckwordItemID); LocationID 6 = Rambøll HQ bygning; ReportedByID 748 = TacVista Automated Services, org 11 = Rambøll Danmark A/S; GradeID 10; StatusID 5 = Awaits handling (enforced with a PUT after create). Values as carried by every ticket the bot created since 2026-04.",

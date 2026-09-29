@@ -480,6 +480,14 @@ def test_missing_secret_queues_and_sends_nothing(vps_cfg, monkeypatch, caplog, c
     assert "no ingest secret" in caplog.text
 
 
+def test_relative_secrets_file_is_next_to_config_json(vps_cfg, tmp_path):
+    vps_cfg["paths"]["secrets_file"] = "secrets.json"
+    vps_cfg["_config_dir"] = str(tmp_path)
+    shcfg = shipper.load_shipper_config(vps_cfg)
+    assert shcfg.secrets_file == str(tmp_path / "secrets.json")
+    assert shipper.read_ingest_secret(shcfg) == SECRET
+
+
 def test_secret_from_env_wins_and_bom_file_is_read(vps_cfg, monkeypatch):
     shcfg = shipper.load_shipper_config(vps_cfg)
     path = vps_cfg["paths"]["secrets_file"]

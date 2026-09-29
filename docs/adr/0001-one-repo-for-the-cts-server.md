@@ -49,5 +49,5 @@ This caused three problems:
 - Three agents on the development box keep this true: `cts-api-keeper` owns migrations and the "one home"
   rule, `cts-server-runbook-writer` turns every server action into a script pair, and `cts-api-scope-guard`
   audits scope and secrets before each push.
-- The running applications' own folders on the server, such as the alarm bot's `C:\priorityalarmsapi`, are
-  unchanged by this ADR. Moving them is a separate runbook.
+- Applications run in place from their folder under `C:\cts-api` where they can. The alarm bot does since
+  2026-09-29 (cts-alarms ADR-0024), with its runtime files git-ignored next to its code.

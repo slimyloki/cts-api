@@ -1,6 +1,6 @@
 # ADR-0023: The alarm bot's code moves into the cts-api repository
 
-- **Status:** Accepted
+- **Status:** Accepted; decision 3 superseded by [ADR-0024](0024-run-in-place-from-cts-api.md) (2026-09-29)
 - **Date:** 2026-09-29
 - **Refines:** [ADR-0022](0022-cts-side-only-repo-web-app-in-digibuild.md). The code still holds only the
   CTS side; only its location changes.

@@ -1,6 +1,7 @@
 """Tests for the additive main.py changes: run_csv_logging() return value,
 version banner, and an end-to-end --dry-run with/without a "vps" section."""
 import json
+from pathlib import Path
 import logging
 from datetime import datetime
 
@@ -166,13 +167,39 @@ def test_run_csv_logging_returns_written_events(tmp_path):
 
 
 def test_version_banner(bot_cfg, tmp_path, caplog):
-    assert main.__version__ == "2.1.0"
+    assert main.__version__ == "2.1.1"
+    cfg_path = write_cfg(tmp_path, bot_cfg)
     with caplog.at_level(logging.INFO, logger="alarmbot"):
-        rc = main.main(["--config", write_cfg(tmp_path, bot_cfg), "--parse-only"])
+        rc = main.main(["--config", cfg_path, "--parse-only"])
     assert rc == 0
     banner = [r.getMessage() for r in caplog.records if "Alarm bot started" in r.getMessage()]
     assert banner and banner[0].startswith(f"Alarm bot started (v{main.__version__}, ")
+    # the banner names the config file actually used (in place vs copied install)
+    assert f"config={Path(cfg_path).resolve()}, " in banner[0]
     assert banner[0].endswith("no_bootstrap=False)")
+
+
+def test_relative_paths_keep_everything_in_the_config_folder(bot_cfg, tmp_path, monkeypatch):
+    """The CTS server runs the bot in place: config.json uses relative paths and
+    everything the bot writes lands next to it (C:\\cts-api\\cts-alarms)."""
+    app = tmp_path / "app"
+    app.mkdir()
+    bot_cfg["paths"] = {
+        "vista_alarm_file": bot_cfg["paths"]["vista_alarm_file"],   # absolute, like Vista's
+        "objects_csv": "objects.csv", "exceptions_csv": "exceptions.csv",
+        "working_folder": ".", "state_file": "alarms_state.json",
+        "csv_folder": "csv", "csv_state_file": "csv_state.json",
+        "log_folder": "logs", "secrets_file": "secrets.json",
+    }
+    offline(bot_cfg)
+    monkeypatch.chdir(tmp_path)                 # the process cwd must not matter
+    cfg_path = app / "config.json"
+    cfg_path.write_text(json.dumps(bot_cfg), encoding="utf-8")
+    assert main.main(["--config", str(cfg_path)]) == 0           # bootstrap run
+    assert (app / "alarms_state.json").is_file()
+    assert (app / "csv_state.json").is_file()
+    assert (app / "csv").is_dir() and (app / "logs").is_dir()
+    assert not (tmp_path / "logs").exists() and not (tmp_path / "alarms_state.json").exists()
 
 
 # ---------------------------------------------------------------------------

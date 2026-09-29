@@ -22,7 +22,9 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import ntpath
 import os
+import re
 import shutil
 import sys
 import time
@@ -37,15 +39,31 @@ try:
 except ImportError:
     shipper = None
 
-__version__ = "2.1.0"   # v3 incident API + optional VPS shipper; logged in the banner
+__version__ = "2.1.1"   # config next to main.py, relative secrets_file, one login check per run
 
 
 # ---------------------------------------------------------------------------
 # Config & logging
 # ---------------------------------------------------------------------------
 
-DEFAULT_CONFIG_PATH  = r"C:\priorityalarmsapi\config.json"
-DEFAULT_SECRETS_PATH = r"C:\priorityalarmsapi\secrets.json"
+# The bot runs in place from its own folder (C:\cts-api\cts-alarms on the CTS
+# server): config.json is read from the folder this file lives in, and every
+# relative path in it (secrets, state, CSV audit trail, logs) is relative to
+# that folder. --config overrides the config file.
+DEFAULT_CONFIG_PATH  = str(Path(__file__).resolve().parent / "config.json")
+# Used only when a config names no paths.secrets_file: next to config.json.
+DEFAULT_SECRETS_PATH = "secrets.json"
+
+# After MainManager REJECTS the login (HTTP 400/401/403 from /restapi/token) the
+# bot stops trying for this long, unless the credential file changes: one wrong
+# password must not lock the account (shared with the Indeklima bot).
+# The bot used to run from C:\priorityalarmsapi. Until install.ps1 has moved its
+# state into the bot's own folder, a run there must not start from scratch
+# (a bootstrap would drop the link to every open ticket): it stops instead.
+LEGACY_STATE_FILE = r"C:\priorityalarmsapi\alarms_state.json"
+
+AUTH_BACKOFF_S = 30 * 60
+AUTH_MARKER    = "mm_auth_failed.json"      # in the working folder
 
 # Consecutive non-404 API failures on one transition before the bot stops
 # retrying it (state advances, tracking continues).
@@ -58,24 +76,38 @@ def load_config(path: str) -> dict:
         return json.load(f)
 
 
-def load_secrets(cfg: dict, log: logging.Logger) -> dict:
+def resolve_path(cfg: dict, p: str) -> str:
+    """A relative path in config.json is relative to the folder of config.json
+    (cfg["_config_dir"], set by main()); absolute paths are used as they are."""
+    if not p or os.path.isabs(p) or ntpath.isabs(p):
+        return p
+    return os.path.join(cfg.get("_config_dir") or ".", p)
+
+
+def load_secrets(cfg: dict, log: logging.Logger,
+                 source: Optional[dict] = None) -> dict:
     """MainManager credentials, in order of precedence:
     1. environment variables MM_USERNAME / MM_PASSWORD
     2. paths.secrets_file — JSON {"mainmanager": {"username": ..., "password": ...}}
     3. legacy mainmanager.username / .password in config.json (deprecated, warns)
     Returns {} when none is configured; the API is then skipped for the run.
+    A relative paths.secrets_file is relative to config.json's folder.
+    `source`, if given, is filled with {"kind": env|file|config, "path", "mtime"}.
     """
+    source = source if source is not None else {}
     env_u, env_p = os.environ.get("MM_USERNAME"), os.environ.get("MM_PASSWORD")
     if env_u and env_p:
         log.info("Credentials: from environment (MM_USERNAME/MM_PASSWORD)")
+        source.update(kind="env", path=None, mtime=None)
         return {"username": env_u, "password": env_p}
 
-    path = cfg.get("paths", {}).get("secrets_file", DEFAULT_SECRETS_PATH)
+    path = resolve_path(cfg, cfg.get("paths", {}).get("secrets_file", DEFAULT_SECRETS_PATH))
     if path and os.path.exists(path):
         with open(path, "r", encoding="utf-8-sig") as f:   # tolerate a Notepad BOM
             mm = json.load(f).get("mainmanager", {})
         if mm.get("username") and mm.get("password"):
             log.info(f"Credentials: from {path}")
+            source.update(kind="file", path=path, mtime=os.path.getmtime(path))
             return {"username": mm["username"], "password": mm["password"]}
         log.warning(f"{path}: mainmanager.username/password missing")
 
@@ -83,10 +115,61 @@ def load_secrets(cfg: dict, log: logging.Logger) -> dict:
     if legacy.get("username") and legacy.get("password"):
         log.warning("Credentials: from config.json — DEPRECATED, move them to "
                     f"{path or DEFAULT_SECRETS_PATH}")
+        cfg_path = cfg.get("_config_path")
+        source.update(kind="config", path=cfg_path,
+                      mtime=os.path.getmtime(cfg_path) if cfg_path and os.path.exists(cfg_path) else None)
         return {"username": legacy["username"], "password": legacy["password"]}
 
     log.warning("No MainManager credentials configured")
     return {}
+
+
+def auth_rejected(e: Exception) -> bool:
+    """True when MainManager answered the login itself with 400/401/403, i.e.
+    the credentials are wrong or locked, not a network or server problem."""
+    resp = getattr(e, "response", None)
+    code = getattr(resp, "status_code", None)
+    if code is None:
+        m = re.match(r"^(\d{3}) ", str(e))
+        code = int(m.group(1)) if m else None
+    return code in (400, 401, 403)
+
+
+def auth_recently_rejected(marker: Path, source_mtime: Optional[float],
+                           now: float) -> Optional[str]:
+    """Why the login is skipped this run, or None to try it. Skipped while the
+    last rejection is younger than AUTH_BACKOFF_S and the credential file has
+    not changed since (a fixed password is tried on the very next run)."""
+    try:
+        with open(marker, "r", encoding="utf-8") as f:
+            m = json.load(f)
+        age = now - float(m["at"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if source_mtime is not None and m.get("source_mtime") != source_mtime:
+        return None
+    if not 0 <= age < AUTH_BACKOFF_S:
+        return None
+    left = int((AUTH_BACKOFF_S - age) // 60) + 1
+    return (f"rejected {int(age // 60)} min ago ({m.get('error', '?')}); next try in "
+            f"{left} min, or at once when the credentials change")
+
+
+def record_auth_rejection(marker: Path, source: dict, e: Exception,
+                          log: logging.Logger) -> None:
+    """Remember a rejected login (no secret in the file, only when and why)."""
+    try:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        with open(marker, "w", encoding="utf-8") as f:
+            json.dump({"at": time.time(), "error": str(e)[:200],
+                       "source_kind": source.get("kind"),
+                       "source_path": source.get("path"),
+                       "source_mtime": source.get("mtime")}, f)
+        log.warning(f"MainManager rejected the login — no new attempt for "
+                    f"{AUTH_BACKOFF_S // 60} min unless the credentials change "
+                    f"({marker.name})")
+    except OSError as err:
+        log.warning(f"Could not write {marker}: {err}")
 
 
 def setup_logging(log_folder: str) -> logging.Logger:
@@ -984,7 +1067,19 @@ def run(cfg: dict, args: argparse.Namespace, log: logging.Logger) -> int:
     paths      = cfg["paths"]
     thresholds = cfg["thresholds"]
     mm_cfg     = cfg["mainmanager"]
-    creds      = load_secrets(cfg, log)
+    cred_source: dict = {}
+    creds      = load_secrets(cfg, log, cred_source)
+
+    # ---- Not yet moved out of C:\priorityalarmsapi? -----------------
+    if (not os.path.exists(paths["state_file"]) and LEGACY_STATE_FILE
+            and os.path.exists(LEGACY_STATE_FILE)
+            and os.path.normcase(os.path.abspath(LEGACY_STATE_FILE))
+                != os.path.normcase(os.path.abspath(paths["state_file"]))):
+        msg = (f"No state in {paths['state_file']} but the old state is still in "
+               f"{LEGACY_STATE_FILE} — double-click install.cmd once to move it. "
+               "Nothing was done this run.")
+        log.error(msg)
+        return 2
 
     # ---- Load inputs ---------------------------------------------------
     mapping    = load_objects_csv(paths["objects_csv"], log)
@@ -1124,6 +1219,29 @@ def run(cfg: dict, args: argparse.Namespace, log: logging.Logger) -> int:
                 log.info("[DRY] MainManager credentials OK")
             except Exception as e:
                 log.error(f"[DRY] MainManager credential check FAILED: {e}")
+
+    # One login check per real run, before anything is sent. A failure defers
+    # every action (state untouched, nothing abandoned), and a REJECTED login
+    # pauses further attempts for AUTH_BACKOFF_S unless the credentials change.
+    if creds and not api_down and not read_only:
+        marker = working / AUTH_MARKER
+        reason = auth_recently_rejected(marker, cred_source.get("mtime"), time.time())
+        if reason:
+            api_down = f"MainManager login skipped: {reason}"
+        else:
+            try:
+                _mm().check_auth()
+                if marker.exists():
+                    marker.unlink()
+                    log.info("MainManager login OK again — backoff cleared")
+            except Exception as e:
+                api_down = f"MainManager login failed: {e}"
+                if auth_rejected(e):
+                    record_auth_rejection(marker, cred_source, e, log)
+        if api_down:
+            log.error(f"MainManager API unusable this run: {api_down} — alarms are "
+                      "tracked, nothing is sent, state left untouched")
+            errors.append(f"MainManager API unusable: {api_down}")
 
     def _on_not_found(vid: str, entry: Optional[dict], what: str) -> str:
         """Classify a 404. 'api': the whole v3 incident endpoint is gone —
@@ -1361,11 +1479,17 @@ def main(argv: Optional[list[str]] = None) -> int:
     except Exception as e:
         print(f"Config load failed ({args.config}): {e}", file=sys.stderr)
         return 2
+    cfg["_config_path"] = str(Path(args.config).resolve())
+    cfg["_config_dir"]  = str(Path(args.config).resolve().parent)
+    # Every relative path in "paths" is relative to the folder of config.json.
+    cfg["paths"] = {k: (os.path.normpath(resolve_path(cfg, v))
+                        if isinstance(v, str) and v and not k.startswith("_") else v)
+                    for k, v in (cfg.get("paths") or {}).items()}
 
     log = setup_logging(cfg["paths"]["log_folder"])
     log.info("=" * 70)
-    log.info(f"Alarm bot started (v{__version__}, dry_run={args.dry_run}, "
-             f"parse_only={args.parse_only}, "
+    log.info(f"Alarm bot started (v{__version__}, config={cfg['_config_path']}, "
+             f"dry_run={args.dry_run}, parse_only={args.parse_only}, "
              f"no_bootstrap={args.no_bootstrap})")
     try:
         return run(cfg, args, log)

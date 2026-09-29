@@ -16,7 +16,7 @@ Related: [state-files.md](state-files.md) · [mainmanager-api.md](mainmanager-ap
 
 | | `config.json` | `secrets.json` |
 |---|---|---|
-| Default path | `C:\priorityalarmsapi\config.json` (`DEFAULT_CONFIG_PATH`, `main.py:47`) | `paths.secrets_file`, default `C:\priorityalarmsapi\secrets.json` (`DEFAULT_SECRETS_PATH`, `main.py:48`) |
+| Default path | `config.json` **in the folder of `main.py`** since v2.1.1 (`DEFAULT_CONFIG_PATH`): on the CTS server `C:\cts-api\cts-alarms\config.json` (the bot runs in place, ADR-0024). Every relative path under `paths` is relative to that folder. Before v2.1.1 it was always `C:\priorityalarmsapi\config.json` with absolute paths. | `paths.secrets_file`, `"secrets.json"` in the committed config: a relative path is relative to the folder of `config.json` (v2.1.1). `DEFAULT_SECRETS_PATH` (`C:\priorityalarmsapi\secrets.json`) is used only when a config names none. |
 | Override | `--config <path>` | the `paths.secrets_file` key, or environment variables (below) |
 | In the repo | yes (the deployed copy; no secrets) | **no** — `secrets.example.json` shows the shape |
 | Encoding | UTF-8, a BOM is tolerated (`utf-8-sig`) | same |
@@ -75,7 +75,7 @@ History: 3 from 2026-04-17 until 2026-04-21 16:57, then 2 ([ADR-0007](../adr/000
 | `paths.csv_folder` | string, optional | `C:\priorityalarmsapi\csv` | per-directory CSV audit files. If this **or** `csv_state_file` is missing/empty the CSV audit step is skipped silently (and no events are shipped) | `main.py:1047` |
 | `paths.csv_state_file` | string, optional | `C:\priorityalarmsapi\csv_state.json` | CSV-audit state ([state-files.md](state-files.md#csv_statejson)) | `main.py:1048` |
 | `paths.log_folder` | string | `C:\priorityalarmsapi\logs` | daily log files; created if missing | `main.py:1365` → `setup_logging()` |
-| `paths.secrets_file` | string, optional | `C:\priorityalarmsapi\secrets.json` | where the credentials and the ingest secret are read from | `load_secrets()`, `shipper.load_shipper_config()` |
+| `paths.secrets_file` | string, optional | `secrets.json` (relative: next to `config.json`, v2.1.1) | where the credentials and the ingest secret are read from; absolute paths are used as they are | `load_secrets()`/`resolve_path()`, `shipper.load_shipper_config()` |
 
 ### `mainmanager`
 

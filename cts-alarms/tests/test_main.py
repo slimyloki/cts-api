@@ -260,6 +260,29 @@ class SecretsTests(unittest.TestCase):
             self.assertEqual(bot.load_config(c), {"paths": {}})
         self.assertEqual(got, {"username": "f", "password": "fæp"})
 
+    def test_relative_secrets_file_is_next_to_config_json(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {}, clear=True):
+            with open(os.path.join(d, "secrets.json"), "w", encoding="utf-8") as f:
+                json.dump({"mainmanager": {"username": "r", "password": "rp"}}, f)
+            cfg = {"paths": {"secrets_file": "secrets.json"}, "mainmanager": {}, "_config_dir": d}
+            src = {}
+            got = bot.load_secrets(cfg, quiet_log(), src)
+        self.assertEqual(got, {"username": "r", "password": "rp"})
+        self.assertEqual(src["kind"], "file")
+        self.assertEqual(src["path"], os.path.join(d, "secrets.json"))
+        self.assertIsNotNone(src["mtime"])
+
+    def test_windows_absolute_paths_are_not_rebased(self):
+        cfg = {"_config_dir": "/x"}
+        self.assertEqual(bot.resolve_path(cfg, r"C:\priorityalarmsapi\secrets.json"),
+                         r"C:\priorityalarmsapi\secrets.json")
+        self.assertEqual(bot.resolve_path(cfg, "/abs/s.json"), "/abs/s.json")
+        self.assertEqual(bot.resolve_path(cfg, "s.json"), os.path.join("/x", "s.json"))
+
+    def test_default_config_is_next_to_main_py(self):
+        self.assertEqual(Path(bot.DEFAULT_CONFIG_PATH),
+                         Path(bot.__file__).resolve().parent / "config.json")
+
     def test_legacy_config_still_works_with_warning(self):
         with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {}, clear=True):
             cfg = {"paths": {"secrets_file": os.path.join(d, "missing.json")},
@@ -436,6 +459,86 @@ class RunTests(unittest.TestCase):
         self.assertEqual(self.state.read_bytes(), state_before)
         self.assertFalse((Path(self.tmp.name) / "csv").exists())
         self.assertEqual(session.calls, [])
+
+    def test_refuses_to_start_fresh_while_old_state_waits_to_be_moved(self):
+        old = Path(self.tmp.name) / "old" / "alarms_state.json"
+        old.parent.mkdir()
+        old.write_text(json.dumps({"meta": {"bootstrapped": True}, "alarms": {"X": {}}}))
+        self.alr.write_text(alr_row("VISTA_SERVER#30") + "\r\n", encoding="iso-8859-1")
+        self.assertFalse(self.state.exists())
+        log = quiet_log("legacy")
+        args = argparse.Namespace(dry_run=False, parse_only=False, no_bootstrap=False)
+        with mock.patch.object(bot, "LEGACY_STATE_FILE", str(old)), \
+                self.assertLogs(log, level="ERROR") as cm:
+            rc = bot.run(self.cfg, args, log)
+        self.assertEqual(rc, 2)
+        self.assertFalse(self.state.exists())                         # no bootstrap
+        self.assertFalse((Path(self.tmp.name) / "csv").exists())
+        self.assertTrue(any("install.cmd" in m for m in cm.output))
+
+    # -- one login check per run, backoff after a rejected login --------------
+
+    def pending_update(self, vid="VISTA_SERVER#20"):
+        self.write([alr_row(vid, ack=1, user="OPR1 (Operator One FM)")],
+                   {vid: self.entry(vid, 123, [0, 0, 0, "No user"])})
+        return vid
+
+    def token_posts(self, session):
+        return [c for c in session.calls if c[:2] == TOKEN]
+
+    def test_rejected_login_defers_everything_and_abandons_nothing(self):
+        vid = self.pending_update()
+        rc, alarms, session, out = self.run_bot({TOKEN: FakeResponse(400)})
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(self.token_posts(session)), 1)            # one attempt, not one per alarm
+        self.assertEqual([c for c in session.calls if c[:2] != TOKEN], [])
+        self.assertEqual(alarms[vid]["last_state_sig"], [0, 0, 0, "No user"])   # untouched
+        self.assertNotIn("update_failures", alarms[vid])               # nothing counted
+        self.assertTrue(any("MainManager login failed" in m for m in out))
+        self.assertTrue(any("deferred=1" in m for m in out))
+        self.assertTrue((Path(self.tmp.name) / "work" / bot.AUTH_MARKER).exists())
+
+    def test_after_a_rejection_the_next_runs_do_not_try_to_log_in(self):
+        vid = self.pending_update()
+        self.run_bot({TOKEN: FakeResponse(401)})
+        for _ in range(3):
+            rc, alarms, session, out = self.run_bot({TOKEN: FakeResponse(401)})
+            self.assertEqual(self.token_posts(session), [])
+            self.assertTrue(any("login skipped" in m for m in out))
+            self.assertEqual(alarms[vid]["last_state_sig"], [0, 0, 0, "No user"])
+
+    def test_changed_credentials_are_tried_at_once(self):
+        vid = self.pending_update()
+        secrets = Path(self.tmp.name) / "secrets.json"
+        secrets.write_text(json.dumps({"mainmanager": {"username": "u", "password": "old"}}))
+        self.run_bot({TOKEN: FakeResponse(400)})
+        secrets.write_text(json.dumps({"mainmanager": {"username": "u", "password": "new"}}))
+        st = secrets.stat()
+        os.utime(secrets, (st.st_atime, st.st_mtime + 10))
+        ticket = FakeIncident(ID=123, Description="old", Remarks="old", Name="n", MainID=14228, StatusID=5)
+        rc, alarms, session, out = self.run_bot({
+            ("GET", "/api/v3/incidents/123"): ticket.get,
+            ("PUT", "/api/v3/incidents"): ticket.put,
+        })
+        self.assertEqual(len(self.token_posts(session)), 1)
+        self.assertEqual(alarms[vid]["last_state_sig"], [0, 0, 1, "OPR1 (Operator One FM)"])
+        self.assertFalse((Path(self.tmp.name) / "work" / bot.AUTH_MARKER).exists())
+        self.assertTrue(any("backoff cleared" in m for m in out))
+
+    def test_backoff_expires(self):
+        self.pending_update()
+        marker = Path(self.tmp.name) / "work" / bot.AUTH_MARKER
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(json.dumps({"at": 0, "error": "400", "source_mtime": None}))
+        rc, alarms, session, out = self.run_bot({TOKEN: FakeResponse(400)})
+        self.assertEqual(len(self.token_posts(session)), 1)            # old marker: try again
+
+    def test_server_error_on_login_defers_without_backoff(self):
+        vid = self.pending_update()
+        rc, alarms, session, out = self.run_bot({TOKEN: FakeResponse(503)})
+        self.assertEqual(alarms[vid]["last_state_sig"], [0, 0, 0, "No user"])
+        self.assertFalse((Path(self.tmp.name) / "work" / bot.AUTH_MARKER).exists())
+        self.assertTrue(any("deferred=1" in m for m in out))
 
     def test_happy_path_create_and_resolve(self):
         new, gone = "VISTA_SERVER#6", "VISTA_SERVER#7"

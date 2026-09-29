@@ -18,7 +18,7 @@ Enabled by an OPTIONAL "vps" section in config.json:
 
     "vps": {
         "base_url":            "https://api.digibuild.dk",
-        "outbox_file":         "C:\\priorityalarmsapi\\outbox.sqlite",
+        "outbox_file":         "outbox.sqlite",
         "timeout_seconds":     20,
         "max_resend_per_run":  20,
         "time_budget_seconds": 120,
@@ -27,7 +27,7 @@ Enabled by an OPTIONAL "vps" section in config.json:
 
 The shared secret is NOT in config.json. It is read from the environment
 variable CTS_ALARMS_INGEST_SECRET, else from the secrets file main.py uses
-(paths.secrets_file, default C:\\priorityalarmsapi\\secrets.json):
+(paths.secrets_file; a relative path is next to config.json):
 
     {"mainmanager": {...}, "vps": {"ingest_secret": "<same value as the VPS env>"}}
 
@@ -43,6 +43,7 @@ import hashlib
 import hmac
 import json
 import logging
+import ntpath
 import os
 import platform
 import sqlite3
@@ -59,7 +60,7 @@ SOURCE = "cts-alarm-bot"
 INGEST_PATH = "/internal/cts-alarms/v1/ingest"
 HEALTHZ_PATH = "/api/cts-alarms/healthz"      # anonymous reachability check
 SECRET_ENV = "CTS_ALARMS_INGEST_SECRET"
-DEFAULT_SECRETS_PATH = r"C:\priorityalarmsapi\secrets.json"
+DEFAULT_SECRETS_PATH = "secrets.json"          # relative: next to config.json
 USER_AGENT = "cts-alarm-bot-shipper/2"
 MAX_ERRORS_PER_RUN = 100      # bound the run.errors list in the payload
 MAX_RESPONSE_TEXT = 300       # truncate server text in log / outbox
@@ -111,16 +112,23 @@ def load_shipper_config(cfg: dict) -> Optional[ShipperConfig]:
                          "secrets file")
     paths = cfg.get("paths") or {}
     working = paths.get("working_folder") or "."
-    outbox_file = str(vps.get("outbox_file") or
-                      os.path.join(working, "outbox.sqlite"))
+    outbox_file = _resolve(cfg, str(vps.get("outbox_file") or
+                      os.path.join(working, "outbox.sqlite")))
     return ShipperConfig(
         base_url            = base_url,
-        secrets_file        = str(paths.get("secrets_file") or DEFAULT_SECRETS_PATH),
+        secrets_file        = _resolve(cfg, str(paths.get("secrets_file") or DEFAULT_SECRETS_PATH)),
         outbox_file         = outbox_file,
         timeout_seconds     = float(vps.get("timeout_seconds", 20)),
         max_resend_per_run  = max(0, int(vps.get("max_resend_per_run", 20))),
         time_budget_seconds = float(vps.get("time_budget_seconds", 120)),
     )
+
+
+def _resolve(cfg: dict, p: str) -> str:
+    """Relative config paths are relative to config.json's folder (as in main.py)."""
+    if not p or os.path.isabs(p) or ntpath.isabs(p):
+        return p
+    return os.path.join(cfg.get("_config_dir") or ".", p)
 
 
 def read_ingest_secret(shcfg: ShipperConfig) -> str:

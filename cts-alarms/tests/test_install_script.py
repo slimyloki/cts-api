@@ -21,19 +21,30 @@ class InstallScriptTests(unittest.TestCase):
         # Windows PowerShell 5.1 reads a BOM-less .ps1 as ANSI; non-ASCII would garble.
         self.assertTrue(all(b < 128 for b in self.raw))
 
-    def test_installs_exactly_the_code_files(self):
-        m = re.search(r'\$InstallFiles\s*=\s*@\(([^)]*)\)', self.text)
-        self.assertIsNotNone(m)
-        files = re.findall(r'"([^"]+)"', m.group(1))
-        self.assertEqual(files, ["main.py", "shipper.py", "config.json", "secrets.example.json"])
-        for f in files:
-            self.assertTrue((ROOT / f).is_file(), f)
+    def test_runs_in_place_and_never_copies_code_elsewhere(self):
+        # The bot runs from this folder; the task must point at its main.py.
+        self.assertIn('$App      = $PSScriptRoot', self.text)
+        self.assertIn('$mainPy = Join-Path $App "main.py"', self.text)
+        self.assertNotRegex(self.text, r'Copy-Item[^\n]*main\.py[^\n]*\$OldFolder')
+        self.assertNotIn("$InstallFiles", self.text)
+
+    def test_moves_old_data_once_and_only_renames_the_old_folder(self):
+        self.assertIn('[string]$OldFolder  = "C:\\priorityalarmsapi"', self.text)
+        for need in ('$StateFiles   = @("alarms_state.json", "csv_state.json")',
+                     'foreach ($d in @("csv", "logs"))', "copied secrets.json",
+                     "Rename-Item -Path $OldFolder"):
+            self.assertIn(need, self.text)
+        # never deleted, and retired only after the test run
+        self.assertNotRegex(self.text, r"Remove-Item[^\n]*\$OldFolder")
+        self.assertLess(self.text.index("Ok \"test run clean\""), self.text.index("Rename-Item -Path $OldFolder"))
+        # a copy that does not match is a hard stop, the old folder untouched
+        self.assertIn("was not copied correctly. $OldFolder is untouched.", self.text)
 
     def test_never_overwrites_live_server_files(self):
-        m = re.search(r'\$InstallFiles\s*=\s*@\(([^)]*)\)', self.text)
-        for live in ("objects.csv", "exceptions.csv", "secrets.json", "alarms_state.json",
-                     "csv_state.json"):
-            self.assertNotIn(live, m.group(1))
+        m = re.search(r'\$CodePatterns = @\(([^)]*)\)', self.text)
+        self.assertIsNotNone(m)
+        for live in ("secrets.json", "alarms_state.json", "csv_state.json", "mm_token.json"):
+            self.assertNotIn(f'"{live}"', m.group(1))
 
     def test_secrets_written_without_bom_and_locked_with_sids(self):
         self.assertIn("New-Object Text.UTF8Encoding($false)", self.text)
@@ -41,8 +52,10 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn('"*S-1-5-18:(F)"', self.text)          # SYSTEM
         self.assertIn("/inheritance:r", self.text)
 
-    def test_backup_skips_secrets_and_token(self):
-        self.assertIn('@("secrets.json", "mm_token.json") -notcontains $_.Name', self.text)
+    def test_backup_is_code_and_state_never_secrets(self):
+        self.assertIn('[string]$BackupRoot = "C:\\cts-api-backups\\cts-alarms"', self.text)
+        self.assertIn("Save-Code $backup", self.text)
+        self.assertIn('Lock-Path $BackupRoot "(OI)(CI)(F)"', self.text)
 
     def test_dry_run_gate_matches_main_py(self):
         main = (ROOT / "main.py").read_text(encoding="utf-8")
@@ -52,20 +65,41 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn('"*[[]DRY] MainManager credentials OK*"', self.text)
         self.assertIn('"*[[]DRY] nothing written*"', self.text)
         self.assertIn('Alarm bot started (v$version,', self.text)
+        self.assertIn('config=$cfgPath,', self.text)         # the in-place config.json was used
+        self.assertIn('"install.cmd once"', self.text)       # the legacy-state guard counts as a failure
 
     def test_tls12_for_github(self):
         self.assertIn("[Net.SecurityProtocolType]::Tls12", self.text)
 
-    def test_download_updates_the_cts_api_folder(self):
+    def test_download_updates_c_cts_api_with_a_way_back(self):
         self.assertIn('[string]$Repo       = "slimyloki/cts-api"', self.text)
-        self.assertIn("pull --ff-only", self.text)
+        self.assertIn('Invoke-Git @("pull", "--ff-only")', self.text)
         self.assertIn('"safe.directory=*"', self.text)
-        self.assertIn("$repoRoot = Split-Path $appDir -Parent", self.text)
+        self.assertIn('$back = @("-RevertTo", $old)', self.text)
+        self.assertIn('$back = @("-RevertFrom", $codeBackup)', self.text)
+        self.assertIn('Invoke-Git @("reset", "--hard", $commit)', self.text)
+        self.assertIn("The previous code is back.", self.text)
+        # the task is disabled before the pull, so no run sees half-updated code
+        self.assertLess(self.text.index("Disable-BotTask                      # no scheduled run"),
+                        self.text.index('Invoke-Git @("pull", "--ff-only")'))
         root_install = (ROOT.parent / "INSTALL.md")
         if root_install.is_file():                   # inside the cts-api checkout
             txt = root_install.read_text(encoding="utf-8")
             self.assertIn("https://github.com/slimyloki/cts-api/archive/refs/heads/main.zip", txt)
             self.assertIn("git clone https://github.com/slimyloki/cts-api.git C:\\cts-api", txt)
+
+    def test_status_script_is_read_only_and_safe(self):
+        st = (ROOT / "status.ps1").read_bytes()
+        self.assertTrue(all(b < 128 for b in st))
+        t = st.decode("ascii")
+        for verb in ("Set-Content", "Remove-Item", "Rename-Item", "Copy-Item", "Disable-ScheduledTask",
+                     "Enable-ScheduledTask", "Set-ScheduledTask", "icacls", "WriteAllText"):
+            self.assertNotIn(verb, t, verb)
+        self.assertIn("VERDICT: OK", t)
+        self.assertNotRegex(t, r"\$j\.mainmanager\.password\b(?!\))")   # never printed
+        cmd = (ROOT / "status.cmd").read_bytes()
+        self.assertEqual(cmd.count(b"\n"), cmd.count(b"\r\n"))
+        self.assertIn(b'-ExecutionPolicy Bypass -File "%~dp0status.ps1"', cmd)
 
     def test_cmd_wrappers_keep_crlf_and_call_the_script(self):
         # cmd.exe misparses LF-only batch files; .gitattributes keeps the bytes as committed.
@@ -83,20 +117,20 @@ class InstallScriptTests(unittest.TestCase):
 
     def test_install_md_points_at_the_real_files(self):
         md = (ROOT / "INSTALL.md").read_text(encoding="utf-8")
-        for needle in ("C:\\cts-api\\cts-alarms", "../INSTALL.md",
+        for needle in ("C:\\cts-api\\cts-alarms", "../INSTALL.md", "status.cmd",
                        "install.cmd", "update.cmd", "-ResetSecrets", "-Rollback", "-NoEnable",
-                       "real run complete, nothing deferred, no"):
+                       "C:\\priorityalarmsapi.retired-", "real run complete, nothing deferred, no"):
             self.assertIn(needle, md)
-        for needle in ("real run complete, nothing deferred, no errors", "-ResetSecrets",
-                       "-Rollback", "-NoEnable"):
+        for needle in ("real run complete, nothing deferred, no errors", "ResetSecrets",
+                       "Rollback", "NoEnable"):
             self.assertIn(needle, self.text)
 
     def test_parses_in_powershell_if_available(self):
         pwsh = shutil.which("pwsh")
         if not pwsh:
             self.skipTest("pwsh not installed")
-        cmd = ("$e=$null;$t=$null;[void][System.Management.Automation.Language.Parser]::"
-               f"ParseFile('{PS1}',[ref]$t,[ref]$e);$e.Count")
+        cmd = ("$n=0; foreach ($f in @('" + str(PS1) + "','" + str(ROOT / 'status.ps1') + "')) { "
+               "$e=$null;$t=$null;[void][System.Management.Automation.Language.Parser]::ParseFile($f,[ref]$t,[ref]$e); $n+=$e.Count }; $n")
         out = subprocess.run([pwsh, "-NoProfile", "-Command", cmd],
                              capture_output=True, text=True, timeout=120)
         self.assertEqual(out.stdout.strip(), "0", out.stdout + out.stderr)

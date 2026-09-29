@@ -2,30 +2,43 @@
 
 Everything happens on the CTS server itself. Nothing needs to be copied or pasted from another machine.
 
+The bot runs **in place from `C:\cts-api\cts-alarms`**. Its config, `secrets.json`, state, CSV audit trail
+(`csv\`) and logs (`logs\`) all live in that folder. The old folder `C:\priorityalarmsapi` is not used any more.
+The first install moves its data over and renames it to `C:\priorityalarmsapi.retired-<date>`.
+
 **First, the repo must be in `C:\cts-api`.** If it is not there yet, follow [../INSTALL.md](../INSTALL.md): a
 `git clone`, or a ZIP download and rename.
 
-The bot itself keeps running from **`C:\priorityalarmsapi`**. That folder holds its state, logs, CSV audit
-trail and `secrets.json`. `C:\cts-api\cts-alarms` is only the source that the install copies from.
+## The three files you double-click
 
-## First install
+| File | What it does |
+|---|---|
+| **`install.cmd`** | Asks for administrator rights, then runs `install.ps1` (below). Use it the first time, and after changing the password. |
+| **`update.cmd`** | Gets the newest version (`git pull`, or the ZIP when Git is not used), then does the same as `install.cmd`. If the new version fails its test run, it puts the previous code back. |
+| **`status.cmd`** | Read-only: shows the task, the files and today's log, and ends with **`VERDICT: OK`** or the problem and its fix. |
 
-1. Open **`C:\cts-api\cts-alarms`** and double-click **`install.cmd`**. Answer **Yes** when Windows asks
-   for administrator rights.
+## First install (once)
+
+1. Open **`C:\cts-api\cts-alarms`** and double-click **`install.cmd`**. Answer **Yes** when Windows asks for
+   administrator rights.
 2. Answer the questions in the window:
    - **Username:** press Enter to keep the one shown.
    - **Password:** type the **new** MainManager password twice. It is not shown while you type.
    - **"Enable the task and start one real run now? [Y/n]":** press Enter for yes.
-3. Read the end of the window. Success is the line **`OK  real run complete, nothing deferred, no errors`**,
-   followed by **`Done. v2.1.0 is installed and the task is enabled.`**
+3. Read the end of the window. Success is the line **`OK  real run complete, nothing deferred, no errors`**, then
+   **`Done. v2.1.1 runs from C:\cts-api\cts-alarms and the task is enabled.`**
 
-If anything is wrong, the script stops, says what failed, and leaves the scheduled task **disabled**. The
-window then shows the next step. It is usually one of the commands under [Other things](#other-things).
+On this first run it also moves `alarms_state.json`, `csv_state.json`, `csv\`, `logs\` and an existing
+`secrets.json` from `C:\priorityalarmsapi` into `C:\cts-api\cts-alarms`. After the test run has passed, it renames
+the old folder to `C:\priorityalarmsapi.retired-<date>`. Delete that folder whenever you like.
 
-## Later updates
+If anything is wrong, the script stops, says what failed, and leaves the scheduled task **disabled**. The window
+then shows the next step. It is usually one of the commands under [Other things](#other-things).
 
-Double-click **`C:\cts-api\cts-alarms\update.cmd`**. It brings `C:\cts-api` up to date (`git pull`, or the
-ZIP when Git is not used) and runs the same install, with the same backup and dry-run check.
+## Later
+
+- **Is it working?** Double-click **`status.cmd`**.
+- **New version?** Double-click **`update.cmd`**.
 
 ## Other things
 
@@ -39,17 +52,14 @@ Then one of these:
 
 | Type this | When |
 |---|---|
-| `install.cmd -ResetSecrets` | The password was changed again, or the window said `credential check FAILED`. |
-| `install.cmd -Rollback` | Go back to the files from before the last install. |
+| `install.cmd -ResetSecrets` | The password was changed again, or the window or `status.cmd` said the login was rejected. |
+| `install.cmd -Rollback` | Go back to the code from before the last install. State, logs and `secrets.json` stay. |
 | `install.cmd -NoEnable` | Install and test, but leave the task switched off. |
 
-## What the install does
+## What stays out of Git
 
-The details are in [docs/reference/install-script.md](docs/reference/install-script.md). In short:
-1. Stops the scheduled task `\TACVistaLogs\TACVista_Alarm_Bot`.
-2. Backs up `C:\priorityalarmsapi` to `C:\priorityalarmsapi-backups\<date-time>\`.
-3. Copies in `main.py`, `shipper.py`, `config.json` and `secrets.example.json`.
-4. Writes `secrets.json` with the password, readable only by the task's account and administrators.
-5. Runs a test that changes nothing (`--dry-run`), then switches the task back on.
+`secrets.json`, `alarms_state.json`, `csv_state.json`, `csv\`, `logs\`, `mm_token.json` and
+`mm_auth_failed.json` are git-ignored: a `git pull` never touches them and nothing can push them. Backups of code
+and state go to `C:\cts-api-backups\cts-alarms\<date-time>\`, outside the repo.
 
-It never changes `objects.csv`, `exceptions.csv`, the state files, `logs\` or `csv\`.
+The details are in [docs/reference/install-script.md](docs/reference/install-script.md).

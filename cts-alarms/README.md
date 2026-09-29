@@ -20,14 +20,14 @@ imported on 2026-09-29 from `slimyloki/cts-alarms` at commit `907d91f`, without 
 | `objects.csv` | Maps an alarm object to a MainManager MainID (empty today, so the fallback MainID is used). |
 | `exceptions.csv` | Vista directories that never create incidents. |
 | `TACVista_Alarm_Bot.xml` | Export of the scheduled task. |
-| `install.ps1`, `install.cmd`, `update.cmd` | Install or update on the CTS server: backup, copy, `secrets.json`, dry-run gate, enable. See [INSTALL.md](INSTALL.md). |
+| `install.cmd`, `update.cmd`, `status.cmd` (+ `.ps1`) | Double-click on the CTS server: install (moves old data once, `secrets.json`, dry-run gate, enable), update (pull + gate + way back), health check. See [INSTALL.md](INSTALL.md). |
 | `tests/` | Unit tests; no network, no CTS server needed. |
 | `docs/` | arc42, ADRs, C4, reference docs and the backlog. Start at [docs/README.md](docs/README.md). |
 | `Alarm_bot_build_reference.md` | The original design document; partly outdated, kept for history. |
 
 Runtime data (`logs/`, `csv/`, `alarms_state.json`, `csv_state.json`, `alarm_snapshot.alr`, `mm_token.json`,
-`outbox.sqlite`) is written on the CTS server and is git-ignored. The data as of 2026-09-28 is archived
-privately on the VPS.
+`mm_auth_failed.json`, `outbox.sqlite`) and `secrets.json` are written next to `main.py` on the CTS server and are
+git-ignored ([ADR-0024](docs/adr/0024-run-in-place-from-cts-api.md)). The data as of 2026-09-28 is archived privately on the VPS.
 
 ## Tests
 
@@ -41,9 +41,10 @@ The bot itself needs only Python 3.13 and `requests`. The pytest-style files (`t
 
 ## Deploy
 
-On the CTS server the repo is `C:\cts-api`. Double-click `C:\cts-api\cts-alarms\install.cmd` for the first
-install and `update.cmd` later; see [INSTALL.md](INSTALL.md). The bot keeps running from
-`C:\priorityalarmsapi`. Turning the shipper on is described in
+On the CTS server the repo is `C:\cts-api` and the bot runs in place from `C:\cts-api\cts-alarms`
+([ADR-0024](docs/adr/0024-run-in-place-from-cts-api.md)). Double-click `install.cmd` there once (it also moves the
+data out of the old `C:\priorityalarmsapi`), `update.cmd` for new versions, `status.cmd` to check; see
+[INSTALL.md](INSTALL.md). Turning the shipper on is described in
 [docs/reference/shipper.md](docs/reference/shipper.md).
 
 ## Secrets
