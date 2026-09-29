@@ -8,7 +8,7 @@ This file tracks the order and, per application, the checklist. `cts-api-keeper`
 | # | Application | Source | Folder here | Status |
 |---|---|---|---|---|
 | 1 | Alarm bot | `slimyloki/cts-alarms` @ `907d91f` (2026-09-29) | `cts-alarms/` | **Migrated 2026-09-29.** Runtime folder on the server is unchanged: `C:\priorityalarmsapi`. |
-| 2 | Indoor-climate bot | `slimyloki/vista-opc` → `indeklima-bot/` (v3 port merged as `185b98f`) | `indeklima-bot/` | Planned. Its v3 port is not deployed yet. |
+| 2 | Indoor-climate bot | `slimyloki/vista-opc` → `indeklima-bot/` (v3 port merged as `185b98f`) | `indeklima-bot/` | Planned. Its v3 port is **live** on the CTS server since 2026-09-29 12:15 UTC, from `C:\vista-opc\indeklima-bot\`; the ticket mirror shows its first new tickets. Import after vista-opc PR #2 lands, so the import carries that fix. |
 | 3 | Vista OPC .NET API | `slimyloki/vista-opc` → `dotnetapi/` | `vista-opc/` | Planned. Any credential in its code moves into a git-ignored secrets file before import (checklist step 3). |
 | 4 | The rest | Anything else found running on the CTS server | as named | To be inventoried. |
 

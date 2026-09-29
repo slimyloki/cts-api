@@ -17,7 +17,7 @@ ALR_ROWS = [
      0, 0, "67969A77", 1, "No user", 0, "Konvektor ventiler forceret lukket af bruger", 1,
      "VISTA_SERVER-LOYTEC_PORT-RHQ-34551_02_ET7_XENTA-ZM_OMR5_ET6_7-APP.32090_0721ForcLuk_A"),
     ("VISTA_SERVER#683F053E", "325-10-04806-Udsugning-Alarm-Bit0_Fejl", "683F053E",
-     0, 0, "683F053E", 2, "GERTN (Gert Nielsen FM)", 1, "ATV61 Fejl på blæser", 1,
+     0, 0, "683F053E", 2, "OPR1 (Operator One FM)", 1, "ATV61 Fejl på blæser", 1,
      "325-10-04806-Udsugning-Alarm-Bit0_Fejl"),
     ("VISTA_SERVER#683F053F", "325-10-04806-Udsugning-Alarm-Bit3_MotorFejl", "683F053E",
      1, 0, "683F0600", 3, "No user", 0, "Motor fejl på kølekreds", 2,
@@ -127,7 +127,7 @@ def test_run_csv_logging_returns_written_events(tmp_path):
     assert isinstance(e1["ts"], datetime) and e1["ts"].tzinfo is not None
     assert e1["state1"] == 0 and e1["ack_flag"] == 1 and e1["count"] == 1
     assert e1["date1_epoch"] == 0x683F053E and e1["priority"] == 2
-    assert e1["user"] == "GERTN (Gert Nielsen FM)"
+    assert e1["user"] == "OPR1 (Operator One FM)"
     assert e1["alarm_text"] == "ATV61 Fejl på blæser"
     assert e1["status_label"] == "ACTIVE + ACKNOWLEDGED"
     assert set(e1) == set(main.Alarm.__slots__) | {"ts", "event", "status_label"}

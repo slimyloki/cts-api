@@ -87,7 +87,7 @@ no state, no CSV, no outbox; a dry run makes exactly one MainManager call — th
   (`MMClientTests`, `RunTests`)
 - Live test 2026-09-28 (owner-approved): `GET /api/v3/incidents/37058` 200 vs `/restapi/Incident/GetIncident` 404;
   update on 34570; create of 37378 (`CTS Alarm - TEST - v2.0.0 endpoint test (ignore)`) identical to 37058 on
-  every derived field — [design record](../design/2026-09-28-vps-branch-design.md)
+  every derived field — design record (2026-09-28, kept in the old repo `slimyloki/cts-alarms` under `docs/design/`; not carried into cts-api because it describes the VPS side)
 - Logs up to 2026-09-28 (archived privately on the VPS): last `UPDATED incident 36693` 2026-09-19 00:40:06,
   404s from 02:55:13
 - [reference/mainmanager-api.md](../reference/mainmanager-api.md)

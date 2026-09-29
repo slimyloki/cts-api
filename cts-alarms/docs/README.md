@@ -49,7 +49,7 @@ for the shipper, [reference/shipper.md](reference/shipper.md).
 To work on the web side: the digibuild repo, sub-project `cts-alarms`. This repo only holds the wire contract
 ([reference/shipper.md](reference/shipper.md), [ADR-0020](adr/0020-hmac-ingest-to-digibuild.md)) and the
 record of how the split was decided ([C4 §05](c4/05-target-architecture-proposal.md),
-[design record](design/2026-09-28-vps-branch-design.md)).
+design record (2026-09-28, kept in the old repo `slimyloki/cts-alarms` under `docs/design/`; not carried into cts-api because it describes the VPS side)).
 
 ## Layout
 
@@ -60,7 +60,6 @@ docs/
 ├── arc42/               architecture documentation, arc42 template, 12 sections
 ├── adr/                 architecture decision records, 0001–0023
 ├── c4/                  C4 model diagrams (context, container, component, code) + target architecture as realised
-├── design/              dated design records (the VPS branch design and its decisions)
 └── reference/           exact file/API formats for the data the bot reads, writes and sends
 ```
 
@@ -131,7 +130,6 @@ docs/
 
 | File | Contents |
 |---|---|
-| [2026-09-28-vps-branch-design.md](design/2026-09-28-vps-branch-design.md) | The design of the VPS branch, the owner's decisions D-A … D-E, and where each one lives now. |
 
 ### Reference
 

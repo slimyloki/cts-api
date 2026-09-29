@@ -77,4 +77,4 @@ produced by digibuild's own `sign()` with non-ASCII body and secret, so the two 
 - `shipper.py` (`INGEST_PATH` `:59`, `HEALTHZ_PATH` `:60`, `SECRET_ENV` `:61`, `read_ingest_secret()` `:126`,
   `signed_headers()` `:143`, `_post()` `:315`, `probe()` `:344`, `ship()` `:358`, `ship_run()` `:447`)
 - `tests/test_shipper.py`, `tests/test_main_events.py`
-- [reference/shipper.md](../reference/shipper.md); decision D-E in the [design record](../design/2026-09-28-vps-branch-design.md)
+- [reference/shipper.md](../reference/shipper.md); decision D-E in the design record (2026-09-28, kept in the old repo `slimyloki/cts-alarms` under `docs/design/`; not carried into cts-api because it describes the VPS side)

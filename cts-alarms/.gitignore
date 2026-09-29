@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Secrets — never commit. The repo is PUBLIC (github.com/slimyloki/cts-alarms).
+# Secrets — never commit. The repo is PUBLIC (github.com/slimyloki/cts-api, folder cts-alarms/).
 # Credentials live only in secrets.json on the CTS server (see
 # secrets.example.json); tests/test_repo_hygiene.py fails if config.json ever
 # carries a credential again.

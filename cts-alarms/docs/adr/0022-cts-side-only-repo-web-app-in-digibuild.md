@@ -11,7 +11,7 @@ On 2026-09-29 this repo held three things: the bot that runs on the CTS server; 
 (`server/`, pages + API + importer, PostgreSQL in production, nginx/Docker files) built by the cloud session;
 and ~360 MB of runtime data committed on purpose for the migration (ADR-0014). The same day the owner decided
 that the VPS side is a **digibuild sub-project** (decision D-C in the
-[design record](../design/2026-09-28-vps-branch-design.md)), and their standing rule for new web apps applies:
+design record (2026-09-28, kept in the old repo `slimyloki/cts-alarms` under `docs/design/`; not carried into cts-api because it describes the VPS side)), and their standing rule for new web apps applies:
 pages and on-demand APIs on **Vercel**, only background processes on the **VPS**, **Clerk** login, Danish and
 English. `server/` contradicted that rule (pages served from the VPS, its own auth, nginx/Docker). The owner
 asked to "leave only what I need on the CTS server" in this repo.
@@ -64,5 +64,5 @@ asked to "leave only what I need on the CTS server" in this repo.
 
 - Owner, 2026-09-29: "leave only what I need on the CTS server … make ADR, arc42 and C4 for everything for the
   documentation on the VPS"
-- [Design record](../design/2026-09-28-vps-branch-design.md) decisions D-A … D-E
+- Design record (2026-09-28, kept in the old repo `slimyloki/cts-alarms` under `docs/design/`; not carried into cts-api because it describes the VPS side) decisions D-A … D-E
 - `git log`: `server/` added in `aa27f0d`, `ab617a4`, `963fcd4` (2026-09-29)

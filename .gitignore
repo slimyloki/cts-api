@@ -19,6 +19,10 @@ secrets.*.json
 *.p12
 appsettings.*.local.json
 
+# dev-box tooling and logs never go to the CTS server from here
+.claude/
+*.log
+
 # editor / OS / build leftovers
 __pycache__/
 *.pyc

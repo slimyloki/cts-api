@@ -627,7 +627,7 @@ class MMClient:
     /restapi/Incident/{CreateIncident,GetIncident,UpdateIncident} answered 404
     from 2026-09-19 while the tickets still existed; the tenant's other clients
     use /api/v3/incidents. Only the token endpoint is unchanged.
-    See docs/design/2026-09-28-vps-branch-design.md.
+    See docs/adr/0019-mainmanager-v3-incident-api.md.
     """
 
     TOKEN_MARGIN_S = 300
