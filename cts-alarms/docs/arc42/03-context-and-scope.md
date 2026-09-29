@@ -23,7 +23,7 @@ flowchart LR
     MM["MainManager (Ramboll FM)\nincident / ticket system"]
     FM["FM staff / ticket handlers\nread and close incidents"]
     Owner["Owner (Georgi)\nmaintains bot, config,\nobjects.csv, exceptions.csv"]
-    GitHub["GitHub repo (public)\nslimyloki/cts-alarms\nCTS-side code + docs"]
+    GitHub["GitHub repo (public)\nslimyloki/cts-api\nfolder cts-alarms/ (code + docs)"]
     DB["digibuild cts-alarms\n(VPS worker + Vercel pages)\nalarm history, reports, names"]
     Users["Portal users\n(Clerk login, DA/EN)"]
 
@@ -38,6 +38,7 @@ flowchart LR
     Users -- "browse, rename, report" --> DB
     Owner -- "deploys, configures, reads logs" --> Bot
     Owner -- "pushes code / docs" --> GitHub
+    GitHub -. "pulled into C:/cts-api,\ninstalled by install.cmd" .-> Bot
 ```
 
 ### Business-level interfaces
@@ -50,7 +51,7 @@ flowchart LR
 | FM staff | FM → MainManager | Reading the description, assigning work, closing the ticket. | Ticket lifecycle end is a human decision; the bot never sets a closing status. |
 | Owner | Owner → bot | `config.json` (thresholds, paths, MainManager defaults), `secrets.json` (credentials, ingest secret — on the server only), `objects.csv` (alarm object → MainID), `exceptions.csv` (directories to ignore). | Tuning what becomes a ticket and where it lands. |
 | digibuild `cts-alarms` | Bot → digibuild | Every run: run summary, the CSV audit events of the run, the full current alarm list (all priorities), the alarm→ticket links. | "See all the alarms ever, follow them, analyse recurrence, give them names" — the owner's web application ([ADR-0022](../adr/0022-cts-side-only-repo-web-app-in-digibuild.md)). |
-| GitHub | Owner → repo | CTS-side code, scheduler task XML, tests, docs. **No runtime data, no secrets** (since 2026-09-29). | Version history of what is deployed. Not read by the bot. |
+| GitHub | Owner → repo → CTS server | The CTS-side code, scheduler task XML, install scripts, tests and docs, in the `cts-alarms/` folder of `slimyloki/cts-api` since 2026-09-29 ([ADR-0023](../adr/0023-moved-into-cts-api.md)); before that the repo `slimyloki/cts-alarms`. **No runtime data, no secrets.** | Version history of what is deployed. The owner pulls it into `C:\cts-api` on the server; `install.cmd` copies the code into `C:\priorityalarmsapi`. The bot never reads the repo. |
 
 **Out of scope for the bot:** any UI (digibuild), any reading of MainManager beyond its own tickets, any write to Vista, the Indeklima bot, and alarms with priority > 2 as tickets (they are audited to CSV and shipped, but never become tickets).
 
@@ -76,7 +77,7 @@ flowchart TB
     DGB["api.digibuild.dk\n/internal/cts-alarms/v1/ingest\n/api/cts-alarms/healthz"]
     FMUser["FM staff (MainManager UI)"]
     Ops["BMS operators"]
-    Repo["GitHub: slimyloki/cts-alarms"]
+    Repo["GitHub: slimyloki/cts-api\n(folder cts-alarms/)"]
     Owner["Owner"]
 
     Sched -- "exec every 5 min" --> Py
@@ -93,6 +94,7 @@ flowchart TB
     Py -- "HTTPS POST + HMAC (every run)\nGET healthz (dry run)" --> DGB
     FMUser -- "HTTPS UI" --> MMAPI
     Owner -- "git push (manual)" --> Repo
+    Repo -. "git pull / ZIP into C:/cts-api,\ninstall.cmd copies code in" .-> Py
     Owner -- "RDP / file edit" --> Cfg
 ```
 
@@ -113,7 +115,7 @@ flowchart TB
 | I10 | Run log | local disk + stdout | out | Append, one file per day, never rotated | `YYYY-MM-DD HH:MM:SS [LEVEL] message`, UTF-8 | `setup_logging()` `main.py:92`; [Log format](../reference/log-format.md) |
 | I11 | Operator acknowledgement | BMS operators via Vista client | indirect in | Observed through I1 only (fields 10 `user` and 11 `ack_flag`) | `ack_flag` 0/1, `user` = `"No user"` or `"<LOGIN> (<Name>)"` | `classify_alarm_status()` `main.py:156` |
 | I12 | Ticket handling | FM staff via MainManager UI | indirect | Not observed by the bot (it reads `StatusID` only right after create); a ticket that disappears surfaces as a 404 → `incident_missing` | — | digibuild shows live ticket status from its own MainManager mirror |
-| I13 | Source repository | GitHub `slimyloki/cts-alarms` (public) | out (manual) | `git push` by the owner; the bot has no Git integration | CTS-side code, docs, tests — no runtime data, no secrets | [ADR-0022](../adr/0022-cts-side-only-repo-web-app-in-digibuild.md) |
+| I13 | Source repository | GitHub `slimyloki/cts-api` (public), folder `cts-alarms/`; until 2026-09-29 `slimyloki/cts-alarms` | out (manual), then in (manual) | `git push` by the owner from the development box; on the server `git pull` or a ZIP into `C:\cts-api`, then `install.cmd` copies the code into `C:\priorityalarmsapi`. The bot has no Git integration | CTS-side code, install scripts, docs, tests. No runtime data, no secrets | [ADR-0022](../adr/0022-cts-side-only-repo-web-app-in-digibuild.md), [ADR-0023](../adr/0023-moved-into-cts-api.md), [install script](../reference/install-script.md) |
 | I14 | Vista ID ↔ IncidentID link | local disk + digibuild | out | In `alarms_state.json` (`incident_id`, pruned 30 days after RESOLVED) and in every shipped batch (`incidents[]`); historical links (469 `CREATED` log lines) were imported into digibuild | The CSV audit trail (I9) has no incident id, and the incident itself carries no Vista ID | digibuild keeps the links permanently |
 | I15 | Run shipping | digibuild `cts-alarms` worker via `api.digibuild.dk` | out | HTTPS `POST /internal/cts-alarms/v1/ingest`, HMAC-signed (`X-Signature`, `X-Timestamp`, `X-Nonce`), timeout 20 s; local SQLite outbox for retries; only with a `"vps"` section | IngestBatch `schema_version` 1: `run`, `events`, `snapshot`, `incidents` (JSON, UTF-8) | `shipper.py`; [shipper reference](../reference/shipper.md), [ADR-0020](../adr/0020-hmac-ingest-to-digibuild.md) |
 | I16 | Reachability probe | same | out (dry run only) | Anonymous HTTPS `GET /api/cts-alarms/healthz` | status code only | `shipper.probe()` |

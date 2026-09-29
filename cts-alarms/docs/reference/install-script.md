@@ -1,39 +1,46 @@
 # `install.ps1` — installing and updating the bot on the CTS server
 
-`install.ps1` in the repo root installs the bot on the CTS server from a copy of this repo. It
-does the steps of [arc42 §7](../arc42/07-deployment-view.md) in order and stops at the first
-problem. It needs Windows PowerShell 5.1, which Windows Server 2016 has, run as Administrator.
+`install.ps1` is in the `cts-alarms/` folder of the [cts-api](../../../README.md) repo. It installs the
+bot on the CTS server from `C:\cts-api\cts-alarms`, the source, into `C:\priorityalarmsapi`, where the
+bot runs. It follows the steps of [arc42 §7](../arc42/07-deployment-view.md) in order and stops at the
+first problem. It needs Windows PowerShell 5.1, which Windows Server 2016 has, run as Administrator
+([ADR-0023](../adr/0023-moved-into-cts-api.md)).
 
 ## First install
 
-The short, click-only version for the server is [INSTALL.md](../../INSTALL.md). It downloads the
-ZIP in a browser, extracts it to `C:\cts-alarms-src`, and double-clicks `install.cmd`. That file
-asks for administrator rights and runs `install.ps1` with `-ExecutionPolicy Bypass`. Later,
-`update.cmd` does the same with `-Download`. Both files keep CRLF line endings via
-`.gitattributes`, because `cmd.exe` misparses LF-only batch files.
+1. **Get the repo into `C:\cts-api`** as described in the repo root's
+   [INSTALL.md](../../../INSTALL.md). There are two ways:
+   - `git clone https://github.com/slimyloki/cts-api.git C:\cts-api`, in Command Prompt (Admin).
+   - The ZIP `https://github.com/slimyloki/cts-api/archive/refs/heads/main.zip`, unblocked, extracted to
+     `C:\`, and `C:\cts-api-main` renamed to `C:\cts-api`.
 
-The same from a PowerShell prompt started with *Run as administrator*. The repo is public, so no
-GitHub login is needed:
+   The repo is public, so no GitHub login is needed.
+2. **Double-click `C:\cts-api\cts-alarms\install.cmd`.** The click-only steps are in
+   [INSTALL.md](../../INSTALL.md).
+   - `install.cmd` asks for administrator rights and runs `install.ps1` with `-ExecutionPolicy Bypass`.
+     That lets the unsigned script run for this one call only; it does not change the machine's policy.
+   - `install.cmd` and `update.cmd` keep CRLF line endings through the repo's `.gitattributes`, because
+     `cmd.exe` misparses LF-only batch files.
+
+The same from a PowerShell prompt started with *Run as administrator*:
 
 ```powershell
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-Invoke-WebRequest https://github.com/slimyloki/cts-alarms/archive/refs/heads/main.zip -OutFile C:\cts-alarms-main.zip -UseBasicParsing
-Expand-Archive C:\cts-alarms-main.zip C:\cts-alarms-src -Force
-powershell -NoProfile -ExecutionPolicy Bypass -File C:\cts-alarms-src\cts-alarms-main\install.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\cts-api\cts-alarms\install.ps1
 ```
-
-The first line is needed because PowerShell 5.1 on Server 2016 does not use TLS 1.2 by default,
-and GitHub refuses older versions. `-ExecutionPolicy Bypass` lets the downloaded, unsigned
-script run for this one call only. It does not change the machine's policy.
 
 ## Later updates
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File C:\cts-alarms-src\cts-alarms-main\install.ps1 -Download
-```
+Double-click `C:\cts-api\cts-alarms\update.cmd`. It runs `install.ps1 -Download`, which first brings
+`C:\cts-api` up to date, then runs the **updated** `install.ps1`, so the newest install logic installs the
+newest files.
 
-`-Download` fetches the newest `main` into `C:\cts-alarms-src\<date-time>\` and runs the
-`install.ps1` found there, so the newest install logic installs the newest files.
+| `C:\cts-api` is | `-Download` does |
+|---|---|
+| a Git clone, with `git.exe` on PATH | `git -c safe.directory=* -C C:\cts-api pull --ff-only`. `safe.directory` is needed because the clone may belong to another account than the elevated one. It stops without installing if the pull fails. |
+| not a clone (ZIP) | Sets TLS 1.2, downloads the cts-api ZIP of `main`, and checks that it contains `cts-alarms\install.ps1`. Copies it over `C:\cts-api`, then removes the download. |
+
+TLS 1.2 is set because PowerShell 5.1 on Server 2016 does not use it by default, and GitHub refuses older
+versions.
 
 ## What it does
 
@@ -58,7 +65,7 @@ and run again, or `-Rollback`.
 
 | Switch | Effect |
 |---|---|
-| `-Download` | Fetch the newest `main` from GitHub first and run its `install.ps1`. |
+| `-Download` | Bring `C:\cts-api` up to date first (`git pull`, or the cts-api ZIP), then run the updated `install.ps1`. `update.cmd` uses this. |
 | `-ResetSecrets` | Ask for the MainManager username and password again, for example after a rotation or when the dry run reports `credential check FAILED`. |
 | `-NoEnable` | Stop after a good dry run and leave the task disabled. |
 | `-Yes` | Do not ask before enabling the task. |
@@ -71,7 +78,10 @@ and run again, or `-Rollback`.
 exactly the four code files, never the live CSVs, secrets or state, write `secrets.json` without a
 BOM, and lock it with well-known SIDs. The SIDs are `S-1-5-32-544` for Administrators and
 `S-1-5-18` for SYSTEM, so this works on a Danish-language Windows too. The test also checks that
-the dry-run strings it waits for still exist in `main.py`. When a `pwsh` binary is on PATH it
+the dry-run strings it waits for still exist in `main.py`, and that `-Download` targets
+`slimyloki/cts-api` with `pull --ff-only` and `safe.directory`. The cts-api root's
+`tests/test_repo_scope.py` checks, repo-wide, that every `.cmd` is CRLF and ASCII and every `.ps1` is
+ASCII. When a `pwsh` binary is on PATH it
 parse-checks the script. On 2026-09-29 the script also passed PSScriptAnalyzer's
 Windows PowerShell 5.1 syntax and Server 2016 command-compatibility rules. It has not yet run on
 the CTS server itself.

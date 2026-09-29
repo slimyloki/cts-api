@@ -16,6 +16,7 @@ flowchart LR
         VISTA["TAC Vista 5.1.9 (Schneider Electric)<br/>C:\ProgramData\Schneider Electric\TAC Vista 5.1.9\DB\$thisdb\$this.alr"]
         TASK["Windows Task Scheduler<br/>\TACVistaLogs\TACVista_Alarm_Bot<br/>every 5 min, runs as GPST"]
         PY["Python 3.13 (32-bit)<br/>C:\Users\GPST\AppData\Local\Programs\Python\Python313-32\python.exe<br/>+ requests"]
+        SRC["C:\cts-api\cts-alarms (source, from GitHub)<br/>install.cmd, update.cmd, install.ps1"]
         subgraph WD["C:\priorityalarmsapi (working directory)"]
             MAIN["main.py, shipper.py"]
             CONF["config.json (no secrets)"]
@@ -34,7 +35,7 @@ flowchart LR
     end
 
     subgraph GH["GitHub (public)"]
-        REPO["slimyloki/cts-alarms<br/>CTS-side code + docs"]
+        REPO["slimyloki/cts-api<br/>folder cts-alarms/ (code + docs)"]
     end
 
     TASK -->|"python.exe main.py"| PY
@@ -49,7 +50,8 @@ flowchart LR
     MAIN -->|append| LOGD
     MAIN -->|"HTTPS 443, Bearer token"| MM
     MAIN -->|"HTTPS 443, HMAC-signed POST"| DGB
-    REPO -.->|"owner copies files by hand"| WD
+    REPO -.->|"git pull or ZIP (owner)"| SRC
+    SRC -->|"install.cmd: backup, copy code, dry run, enable"| WD
 ```
 
 ### Node: CTS server
@@ -108,10 +110,18 @@ HTTPS endpoint with a fixed contract: `POST /internal/cts-alarms/v1/ingest` (HMA
 
 ### Node: GitHub (repository, not a runtime)
 
-`slimyloki/cts-alarms` — **public** — holds the CTS-side code, tests and docs only
-([ADR-0022](../adr/0022-cts-side-only-repo-web-app-in-digibuild.md)). No CI, no deployment pipeline: files are
-copied to `C:\priorityalarmsapi` by the owner. Its history up to 2026-09-29 still contains runtime data and the
-(now rotated) v1 password ([TODO T-102](../TODO.md)).
+`slimyloki/cts-api` is **public**. It is the one repository for everything that runs on the CTS server, and
+this bot is its `cts-alarms/` folder ([ADR-0023](../adr/0023-moved-into-cts-api.md); cts-api
+[ADR-0001](../../../docs/adr/0001-one-repo-for-the-cts-server.md)). It holds CTS-side code, install scripts,
+tests and docs only ([ADR-0022](../adr/0022-cts-side-only-repo-web-app-in-digibuild.md)).
+
+There is no CI and no deployment pipeline. The owner pulls the repo into `C:\cts-api`, by `git clone` or `git
+pull`, or by ZIP ([INSTALL.md](../../../INSTALL.md)). `install.cmd` then copies the code into
+`C:\priorityalarmsapi`.
+
+Until 2026-09-29 the code lived in `slimyloki/cts-alarms`. That repo's history still contains runtime data and
+the (now rotated) v1 password. cts-api was started without that history, so the old repo can be archived
+with no deploy impact ([TODO T-102](../TODO.md)).
 
 ## 7.2 File layout on the CTS server and growth
 
@@ -119,8 +129,9 @@ All paths from `config.json` → `paths`. Sizes as of 2026-09-28.
 
 | Path | Written by | Lifecycle | Size / growth |
 |---|---|---|---|
-| `main.py`, `shipper.py` | owner (copy) | static; version in every run banner | ~1380 / ~470 lines |
-| `config.json` | owner | static; **no credentials** | 2 KB |
+| `C:\cts-api\cts-alarms\` | owner (`git pull` / ZIP) | the source the install copies from; not read by the bot | ~1 MB with docs |
+| `main.py`, `shipper.py` | `install.ps1` (copies from `C:\cts-api\cts-alarms`) | static; version in every run banner | ~1380 / ~470 lines |
+| `config.json` | `install.ps1` (from the repo) | static; **no credentials**; a local edit is overwritten by the next install (backup kept) | 2 KB |
 | `secrets.json` | owner | static; MainManager pair + ingest secret; ACL-restricted; never in git | <1 KB |
 | `objects.csv` | owner | static, currently 0 mappings (comments only) | <1 KB |
 | `exceptions.csv` | owner | static, 1 directory | <1 KB |
@@ -171,6 +182,10 @@ limit is two orders of magnitude above normal.
 
 ### `secrets.json` on the CTS server
 
+`install.cmd` creates and locks it for you, without a BOM and with the ACL below, and asks for the password
+([install script](../reference/install-script.md), step 5). Use `install.cmd -ResetSecrets` after a
+rotation. The manual way below is the fallback, and the way to add the shipper's `vps` section.
+
 Create it **without a byte-order mark** (the bot tolerates one since v2.1.0, v2.0.1 does not) and restrict it.
 PowerShell 5.1 on the server, as an administrator or as `GPST`:
 
@@ -190,33 +205,39 @@ shipper is enabled, the file gains `"vps": {"ingest_secret": "…"}` — add it 
 
 ## 7.5 Deploying a new version (owner's hands)
 
-Nothing on the VPS reaches into the building; every deployment is a file copy by the owner. Each deployed
-`main.py` must be a committed version — the start banner names it.
+Nothing on the VPS reaches into the building. Every deployment is done by the owner on the server, by
+double-click, because the owner cannot paste into the server. Each deployed `main.py` is a committed version,
+and the start banner names it.
 
-**v2.0.1 — the v3 MainManager fix ([TODO T-103](../TODO.md)):**
+1. **Get the repo into `C:\cts-api`**, once: `git clone`, or the ZIP renamed to `C:\cts-api`. See the repo
+   root's [INSTALL.md](../../../INSTALL.md).
+2. **First install:** double-click `C:\cts-api\cts-alarms\install.cmd`
+   ([INSTALL.md](../../INSTALL.md), [install script reference](../reference/install-script.md)). It:
+   - disables the task and backs up to `C:\priorityalarmsapi-backups\<date-time>\`;
+   - copies `main.py`, `shipper.py`, `config.json` and `secrets.example.json`;
+   - creates and locks `secrets.json` (7.4) and deletes `mm_token.json`;
+   - requires a clean `--dry-run`: the new version in the banner, `[DRY] MainManager credentials OK` and
+     `[DRY] nothing written`;
+   - enables the task and shows the first real run.
 
-1. Back up the working folder: `Copy-Item C:\priorityalarmsapi "C:\priorityalarmsapi-backup-$(Get-Date -Format yyyyMMdd-HHmm)" -Recurse`.
-2. Stop the task: `Disable-ScheduledTask -TaskPath "\TACVistaLogs\" -TaskName "TACVista_Alarm_Bot"`.
-3. Copy `main.py`, `config.json` and `secrets.example.json` of the release into `C:\priorityalarmsapi`; compare
-   `Get-FileHash main.py` with the release's SHA-256.
-4. Create `secrets.json` as in 7.4 with the new password; delete any `mm_token.json`.
-5. Dry run (safe on the live folder): `& "C:\Users\GPST\AppData\Local\Programs\Python\Python313-32\python.exe" C:\priorityalarmsapi\main.py --dry-run`.
-   Expect `Alarm bot started (v2.0.1, …`, `Credentials: from C:\priorityalarmsapi\secrets.json`, `API AUTH: HTTP 200`,
-   `[DRY] MainManager credentials OK`, `[DRY] Would update/mark …` lines for the backlog stuck since 2026-09-19,
-   `[DRY] nothing written …`. `401` → wrong password; a traceback about JSON/BOM → re-create `secrets.json` as in 7.4.
-6. Start: `Enable-ScheduledTask …` then `Start-ScheduledTask -TaskPath "\TACVistaLogs\" -TaskName "TACVista_Alarm_Bot"`.
-   The log should show `UPDATED` / `RESOLVED` lines and `Run complete: … deferred=0`; the backlog goes out in this
-   first run. Check one ticket in MainManager.
-7. When verified, delete the backup's `config.json` (it holds the old, rotated password) or the whole backup.
+   The backlog stuck since 2026-09-19 goes out in that first run ([TODO T-103](../TODO.md)).
+3. **Later versions:** double-click `C:\cts-api\cts-alarms\update.cmd`. It runs `git pull`, or fetches the
+   ZIP, then the same install.
 
-**v2.1.x + the shipper ([TODO T-092](../TODO.md))** — only after the digibuild worker answers
-`https://api.digibuild.dk/api/cts-alarms/healthz` with 200: add `vps.ingest_secret` to `secrets.json`, copy
-`shipper.py` and the v2.1.x `main.py`, add the `"vps"` block to `config.json`, dry run (expect
-`[DRY] VPS ingest secret: present` and `… healthz -> HTTP 200`), then let the task run and look for
-`VPS: shipped run … (HTTP 200)`. Steps in [reference/shipper.md](../reference/shipper.md#installing-on-the-cts-server).
+**The shipper ([TODO T-092](../TODO.md)).** Only after the digibuild worker answers
+`https://api.digibuild.dk/api/cts-alarms/healthz` with 200:
+1. Commit the `"vps"` block to the repo's `config.json`. It holds no secret, and the install copies
+   `config.json`.
+2. Run `update.cmd`.
+3. Add `vps.ingest_secret` to `secrets.json` on the server. `install.ps1 -ResetSecrets` keeps an existing
+   `vps` section but does not ask for it. Adding it by hand, or with a runbook, is still to do.
+4. The dry run must then show `[DRY] VPS ingest secret: present` and `… healthz -> HTTP 200`. After that, look
+   for `VPS: shipped run … (HTTP 200)`.
 
-**Rollback:** disable the task, copy the backup back, enable. The shipper alone is rolled back by removing the
-`"vps"` block (or `shipper.py`).
+Steps are in [reference/shipper.md](../reference/shipper.md#installing-on-the-cts-server).
+
+**Rollback:** `install.cmd -Rollback` restores `main.py`, `shipper.py` and `config.json` from the newest backup
+and enables the task. To roll back only the shipper, remove the `"vps"` block and reinstall.
 
 ## 7.6 What runs elsewhere
 

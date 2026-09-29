@@ -14,7 +14,7 @@ Related: [08 – Crosscutting Concepts](08-crosscutting-concepts.md) · [10 – 
 | 2 | [R-22](#r-22-indeklima-bot-on-the-same-account-still-on-the-removed-api) | Indeklima bot (same account) still on the removed API | H | certain | Outage | **Open** (T-105) |
 | 3 | [R-03](#r-03-secrets-committed-to-a-public-repository) | Secrets committed to a public repository | H | certain | Security | **Mitigated**: password rotated 2026-09-29; secrets in `secrets.json` (ADR-0021); history purge is T-102 |
 | 4 | [R-01](#r-01-404-retry-forever-loop-and-token-request-every-run) | 404 retry-forever loop; token requested every run | M | certain | Bug | **Fixed in code** (v2.0.0: 404 classification, 3-strike limit, token cache) |
-| 5 | [R-04](#r-04-personal-data-in-committed-files) | Personal data of operators in committed files | H | certain | Privacy | **Partly**: runtime data leaves the repo tip; history still public (T-102, T-007) |
+| 5 | [R-04](#r-04-personal-data-in-committed-files) | Personal data of operators in committed files | H | certain | Privacy | **Partly**: runtime data leaves the repo tip; the code moved to cts-api without history (ADR-0023); the old repo's history is still public (T-102, T-007) |
 | 6 | [R-02](#r-02-objectscsv-is-empty--every-incident-lands-on-the-fallback-mainid) | `objects.csv` empty → all incidents on fallback MainID | M | certain | Data quality | Open (T-020) |
 | 7 | [R-13](#r-13-no-alerting-when-the-bot-itself-fails) | No alerting when the bot itself fails | H | medium | Operations | **Designed**: digibuild `late` flag + watchdog; live with the shipper (T-092, T-065) |
 | 8 | [R-05](#r-05-no-log-rotation-and-no-csvstate-retention-strategy) | No log rotation; no CSV/state retention strategy | M | certain | Operations | Open (T-023, T-006) |
@@ -65,7 +65,7 @@ Related: [08 – Crosscutting Concepts](08-crosscutting-concepts.md) · [10 – 
 
 ### R-03: Secrets committed to a public repository
 
-> **Status 2026-09-29 — mitigated.** Credentials are read from `secrets.json`/environment since v2.0.0 ([ADR-0021](../adr/0021-secrets-in-secrets-json.md)); the committed `config.json` has none and `tests/test_repo_hygiene.py` guards it; the owner **rotated the password on 2026-09-29**, so the value in the history is dead. The old value is in 8 commits (7 on GitHub). Remaining: history purge / private repo (T-102), the Indeklima bot still needs the new value (R-22).
+> **Status 2026-09-29 — mitigated.** Credentials are read from `secrets.json`/environment since v2.0.0 ([ADR-0021](../adr/0021-secrets-in-secrets-json.md)); the committed `config.json` has none and `tests/test_repo_hygiene.py` guards it; the owner **rotated the password on 2026-09-29**, so the value in the history is dead. The old value is in 8 commits (7 on GitHub). Since 2026-09-29 the code lives in `slimyloki/cts-api`, started without that history ([ADR-0023](../adr/0023-moved-into-cts-api.md)), so the old commits are isolated in `slimyloki/cts-alarms`. Remaining: archive or make private that old repo (T-102), the Indeklima bot still needs the new value (R-22).
 
 
 **What.** `config.json` holds the MainManager service-account credentials (`mainmanager.username` / `mainmanager.password`) in plain text ([ADR 0013](../adr/0013-secrets-in-config-json.md)). The file is in the initial commit of `github.com/slimyloki/cts-alarms`.
@@ -78,7 +78,7 @@ Related: [08 – Crosscutting Concepts](08-crosscutting-concepts.md) · [10 – 
 
 ### R-04: Personal data in committed files
 
-> **Status 2026-09-29 — partly mitigated.** From 2026-09-29 the repo tip carries no runtime data (`.gitignore`, [ADR-0022](../adr/0022-cts-side-only-repo-web-app-in-digibuild.md)); the data is archived privately on the VPS. The public history still contains it (T-102). Every shipped batch carries operator names to digibuild, whose pages are proposed to show login tokens only (T-007).
+> **Status 2026-09-29 — partly mitigated.** From 2026-09-29 the repo tip carries no runtime data (`.gitignore`, [ADR-0022](../adr/0022-cts-side-only-repo-web-app-in-digibuild.md)); the data is archived privately on the VPS. The public history of the old repo `slimyloki/cts-alarms` still contains it (T-102). Since 2026-09-29 the code lives in `slimyloki/cts-api`, which was started **without** that history ([ADR-0023](../adr/0023-moved-into-cts-api.md)). The old repo is now history only and can be archived or made private with no deploy impact. Every shipped batch carries operator names to digibuild, whose pages are proposed to show login tokens only (T-007).
 
 
 **What.** Field 10 of `$this.alr` is the acknowledging operator's display name, e.g. the owner's own `"GPST (Georgi ISS)"`; other operators' labels have the same shape. The bot copies it into every store.

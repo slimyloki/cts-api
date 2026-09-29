@@ -32,12 +32,13 @@ Status legend: **Accepted** = in force (implemented in `main.py`/`shipper.py`, o
 | 0020 | Ship each run to digibuild over HTTPS POST + HMAC | Accepted | `POST https://api.digibuild.dk/internal/cts-alarms/v1/ingest` signed with digibuild's X-Signature/X-Timestamp/X-Nonce contract (±300 s, nonce 600 s); outbox retries; dry run probes `healthz`. | [0020](../adr/0020-hmac-ingest-to-digibuild.md) |
 | 0021 | Secrets only in `secrets.json` or the environment | Accepted | MainManager pair and ingest secret in the git-ignored, ACL-restricted `secrets.json` (env overrides), read BOM-tolerant; guard test in `tests/test_repo_hygiene.py`. | [0021](../adr/0021-secrets-in-secrets-json.md) |
 | 0022 | CTS side only in this repo; web app in digibuild | Accepted | The repo holds what runs on the CTS server; runtime data stays there; the web app, database and reports are the digibuild sub-project `cts-alarms` (Vercel pages, VPS worker). | [0022](../adr/0022-cts-side-only-repo-web-app-in-digibuild.md) |
+| 0023 | The code moves into the cts-api repository | Accepted | Since 2026-09-29 the bot is the `cts-alarms/` folder of `slimyloki/cts-api`, the one repo for everything on the CTS server. It was imported without the old history. On the server the source is `C:\cts-api\cts-alarms`, installed by `install.cmd`, and the runtime stays `C:\priorityalarmsapi`. | [0023](../adr/0023-moved-into-cts-api.md) |
 
 ## 9.2 Decisions by concern
 
 | Concern | ADRs |
 |---|---|
-| Runtime and hosting | 0002, 0016, 0022 (0018 superseded) |
+| Runtime and hosting | 0002, 0016, 0022, 0023 (0018 superseded) |
 | Alarm identity and change detection | 0003, 0004, 0005, 0006 |
 | Which alarms become incidents | 0007, 0008, 0009 |
 | MainManager integration | 0009, 0010, 0019 |

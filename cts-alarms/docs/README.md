@@ -6,7 +6,13 @@ reads Vista's live alarm list and writes a CSV audit trail. It creates and updat
 (Ramboll FM, v3 API) for priority 1–2 alarms. Its optional shipper (`shipper.py`) posts each run to the digibuild
 sub-project `cts-alarms` over HTTPS POST + HMAC.
 
-**Scope of this repo (since 2026-09-29):** what runs on the CTS server, its tests and these docs
+**Where this lives:** the `cts-alarms/` folder of [`slimyloki/cts-api`](../../README.md), the one repository for
+everything that runs on the CTS server. It was imported on 2026-09-29 from `slimyloki/cts-alarms` without that
+repo's history ([ADR-0023](adr/0023-moved-into-cts-api.md)). On the server the source is `C:\cts-api\cts-alarms`;
+it is installed with `install.cmd` ([INSTALL.md](../INSTALL.md)), and the bot keeps running from
+`C:\priorityalarmsapi`.
+
+**Scope of this folder:** what runs on the CTS server, its install scripts, its tests and these docs
 ([ADR-0022](adr/0022-cts-side-only-repo-web-app-in-digibuild.md)). The web application (history database,
 pages, friendly names, reports) is the digibuild sub-project `cts-alarms`; its architecture is documented in the
 **digibuild repo**. Runtime data (`logs/`, `csv/`, state files) stays on the CTS server; the data as of
@@ -16,7 +22,7 @@ pages, friendly names, reports) is the digibuild sub-project `cts-alarms`; its a
 The docs were verified against `main.py` v2.1.0, `shipper.py`, `config.json`, `TACVista_Alarm_Bot.xml` and the
 runtime data as of 2026-09-28. Open work is in [TODO.md](TODO.md).
 
-> `Alarm_bot_build_reference.md` at the repository root is the **original design document**.
+> `Alarm_bot_build_reference.md` in the `cts-alarms/` folder is the **original design document**.
 > It is kept for history but is **partly outdated** (3-minute cadence, `exceptions.txt`,
 > `C:\ctsapi\alarms`, default MainID 9756, threshold 3, status values
 > OPEN/CLEARED/ACKNOWLEDGED/BOOTSTRAPPED, the v1 MainManager endpoints). Where it contradicts `main.py`,
@@ -31,7 +37,7 @@ A newcomer should read in this order (about 30 minutes):
 2. [C4 level 1 — System context](c4/01-system-context.md) — the one-picture overview (Vista → bot → MainManager and digibuild).
 3. [arc42 §6 Runtime view](arc42/06-runtime-view.md) — what one 5-minute run does, step by step.
 4. [Reference: `$this.alr` file format](reference/alr-file-format.md) — the input everything depends on.
-5. [ADR index](adr/README.md) — skim the 22 decisions; read 0003, 0004, 0019 and 0022 in full.
+5. [ADR index](adr/README.md) — skim the 23 decisions; read 0003, 0004, 0019, 0022 and 0023 in full.
 6. [TODO.md](TODO.md) — the backlog, open decisions and the secrets still to handle.
 
 To change the bot: [C4 level 3 — Components](c4/03-component.md), then [C4 level 4 — Code](c4/04-code.md), then
@@ -52,7 +58,7 @@ docs/
 ├── README.md            this index
 ├── TODO.md              project backlog (owned by the cts-todo-keeper agent, a user-level agent on the development box)
 ├── arc42/               architecture documentation, arc42 template, 12 sections
-├── adr/                 architecture decision records, 0001–0022
+├── adr/                 architecture decision records, 0001–0023
 ├── c4/                  C4 model diagrams (context, container, component, code) + target architecture as realised
 ├── design/              dated design records (the VPS branch design and its decisions)
 └── reference/           exact file/API formats for the data the bot reads, writes and sends
@@ -108,6 +114,7 @@ docs/
 | [0020-hmac-ingest-to-digibuild.md](adr/0020-hmac-ingest-to-digibuild.md) | One HMAC-signed batch per run to `api.digibuild.dk`; SQLite outbox. |
 | [0021-secrets-in-secrets-json.md](adr/0021-secrets-in-secrets-json.md) | Credentials only in `secrets.json` or the environment; rotation after the public exposure. |
 | [0022-cts-side-only-repo-web-app-in-digibuild.md](adr/0022-cts-side-only-repo-web-app-in-digibuild.md) | This repo holds the CTS side only; the web app is the digibuild sub-project. |
+| [0023-moved-into-cts-api.md](adr/0023-moved-into-cts-api.md) | The code moves into the cts-api repository (folder `cts-alarms/`), without the old history; runtime stays `C:\priorityalarmsapi`. |
 
 ### C4
 

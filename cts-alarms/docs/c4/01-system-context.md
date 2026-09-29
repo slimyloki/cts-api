@@ -24,7 +24,7 @@ C4Context
     System_Ext(mainmanager, "MainManager (Ramboll FM)", "Incident ticketing SaaS at rambollfm.mainmanager.dk. v3 incident API, password-grant bearer tokens.")
     System_Ext(digibuild, "digibuild cts-alarms", "Owner's portal: worker + SQLite on the VPS behind api.digibuild.dk, pages on Vercel. Receives every run over HTTPS + HMAC.")
     System_Ext(taskScheduler, "Windows Task Scheduler", "Task TACVistaLogs TACVista_Alarm_Bot. Fires the bot every 5 min as user GPST.")
-    System_Ext(github, "GitHub repo slimyloki/cts-alarms (public)", "CTS-side code, tests and docs. No runtime data, no secrets.")
+    System_Ext(github, "GitHub repo slimyloki/cts-api (public)", "The one repo for all CTS-server code; this bot is its cts-alarms folder. Pulled into C:/cts-api on the server. No runtime data, no secrets.")
 
     Rel(taskScheduler, alarmBot, "Starts python.exe main.py", "every 5 min")
     Rel(alarmBot, vista, "Copies the live alarm list file", "shutil.copy2")
@@ -36,6 +36,7 @@ C4Context
     Rel(portalUser, digibuild, "Browses, renames, reports", "HTTPS, Clerk")
     Rel(maintainer, alarmBot, "Configures, deploys, reads logs", "remote access to the CTS server")
     Rel(maintainer, github, "Pushes code and docs", "git")
+    Rel(github, alarmBot, "Code pulled into C:/cts-api and installed by install.cmd", "git pull or ZIP, by the owner")
 
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
@@ -53,7 +54,7 @@ C4Context
 | MainManager (Ramboll FM) | External system | Incident SaaS (software by EG). The bot uses `POST /restapi/token` and `POST/GET/PUT /api/v3/incidents`; the v1 `/restapi/Incident/*` routes were removed on 2026-09-19 ([ADR 0019](../adr/0019-mainmanager-v3-incident-api.md)). Incidents: `MainID` 14228 (fallback), `IncidentTypeID` 277, `GradeID` 10, `StatusID` 5, location 6, reporter 748 / org 11. | HTTPS, JSON, bearer token from a password grant with the credentials in `secrets.json`. [mainmanager-api.md](../reference/mainmanager-api.md) |
 | digibuild `cts-alarms` | External system | The owner's portal sub-project: a Python worker with its own SQLite database on the VPS (reachable only via `api.digibuild.dk`), pages on Vercel behind Clerk in Danish and English, a watchdog. Stores every run, the history imported from 2026-04-17 … 2026-09-28, friendly names; joins live ticket status from digibuild's MainManager mirror. | [ADR 0022](../adr/0022-cts-side-only-repo-web-app-in-digibuild.md); contract in [shipper.md](../reference/shipper.md); documented in the digibuild repo. |
 | Windows Task Scheduler | External system | `\TACVistaLogs\TACVista_Alarm_Bot`: every `PT5M`, runs as `GPST` with stored password, `IgnoreNew`, `ExecutionTimeLimit=PT5M`, `RestartOnFailure` 3× at 1 min. | `TACVista_Alarm_Bot.xml` |
-| GitHub repo | External system | `slimyloki/cts-alarms`, **public**. CTS-side code, tests and docs only since 2026-09-29; its history still holds the runtime data of 2026-09-28 and the rotated v1 password ([TODO T-102](../TODO.md)). | git / GitHub. No CI, no automated deployment. |
+| GitHub repo | External system | `slimyloki/cts-api`, **public**: the one repository for everything that runs on the CTS server, one folder per application. This bot is `cts-alarms/`, imported 2026-09-29 without history ([ADR 0023](../adr/0023-moved-into-cts-api.md)). The old `slimyloki/cts-alarms` repo is history only; its commits still hold the runtime data of 2026-09-28 and the rotated v1 password ([TODO T-102](../TODO.md)). | git / GitHub. No CI, no automated deployment. On the server: `C:\cts-api` (git pull or ZIP), then `install.cmd`. |
 
 ## Relationships / interfaces
 
