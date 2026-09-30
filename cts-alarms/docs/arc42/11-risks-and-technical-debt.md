@@ -16,7 +16,7 @@ Related: [08 – Crosscutting Concepts](08-crosscutting-concepts.md) · [10 – 
 | 4 | [R-01](#r-01-404-retry-forever-loop-and-token-request-every-run) | 404 retry-forever loop; token requested every run | M | certain | Bug | **Fixed in code** (v2.0.0: 404 classification, 3-strike limit, token cache) |
 | 5 | [R-04](#r-04-personal-data-in-committed-files) | Personal data of operators in committed files | H | certain | Privacy | **Partly**: runtime data leaves the repo tip; the code moved to cts-api without history (ADR-0023); the old repo's history is still public (T-102, T-007) |
 | 6 | [R-02](#r-02-objectscsv-is-empty--every-incident-lands-on-the-fallback-mainid) | `objects.csv` empty → all incidents on fallback MainID | M | certain | Data quality | Open (T-020) |
-| 7 | [R-13](#r-13-no-alerting-when-the-bot-itself-fails) | No alerting when the bot itself fails | H | medium | Operations | **Designed**: digibuild `late` flag + watchdog; live with the shipper (T-092, T-065) |
+| 7 | [R-13](#r-13-no-alerting-when-the-bot-itself-fails) | No alerting when the bot itself fails | H | medium | Operations | **Designed**: digibuild `late` flag + watchdog; the shipper is live since 2026-09-30 (T-115), the alert path is T-065 |
 | 8 | [R-05](#r-05-no-log-rotation-and-no-csvstate-retention-strategy) | No log rotation; no CSV/state retention strategy | M | certain | Operations | Open (T-023, T-006) |
 | 9 | [R-20](#r-20-unbounded-outbox-growth) | Unbounded shipper outbox growth | M | medium | Operations | **New**, open (T-106) |
 | 10 | [R-12](#r-12-single-point-of-failure-on-the-cts-server) | Single point of failure on the CTS server | H | low | Availability | Unchanged by design (the reader must stay there); history now also off-site |
@@ -180,7 +180,7 @@ Related: [08 – Crosscutting Concepts](08-crosscutting-concepts.md) · [10 – 
 
 ### R-13: No alerting when the bot itself fails
 
-> **Status 2026-09-29 — designed, live with the shipper.** Every run is shipped with counters, `errors[]` and `exit_code`; the digibuild worker reports `late` after 15 minutes without a run and digibuild's Vercel watchdog alerts on it (T-092, T-065). An API outage now shows as one ERROR per run plus `deferred=N`, not thousands of lines.
+> **Status 2026-09-30 — designed; the shipper is live (T-115).** Every run is shipped with counters, `errors[]` and `exit_code`; the digibuild worker is designed to report `late` after 15 minutes without a run and digibuild's Vercel watchdog to alert on it — not yet verified end to end (T-065). An API outage now shows as one ERROR per run plus `deferred=N`, not thousands of lines.
 
 
 **What.** Exit codes 1/2 (`main.py:794`, `1013`, `1024`) are not consumed by anything; Task Scheduler is configured with `RestartOnFailure` (3× at 1-minute intervals), but whether it treats the bot's exit codes 1/2 as a failure has not been verified on the CTS server; errors inside a run that still exits 0 (e.g. every API call failing) are visible only by reading the day's log on the server.
@@ -242,7 +242,7 @@ Related: [08 – Crosscutting Concepts](08-crosscutting-concepts.md) · [10 – 
 
 **What.** The digibuild receiver rejects any ingest request whose `X-Timestamp` differs from its own clock by more than 300 s ([ADR-0020](../adr/0020-hmac-ingest-to-digibuild.md)). The shipper signs with the CTS server's clock.
 
-**Evidence.** `shipper.signed_headers()`; digibuild ADR-0022 (`HMAC_MAX_SKEW_SECONDS = 300`). The CTS server's time source has not been checked.
+**Evidence.** `shipper.signed_headers()`; digibuild ADR-0022 (a clock-skew window of 300 s). The CTS server's time source has not been checked. **2026-09-30:** seen from digibuild, the clock ran about 72 s behind for about 40 minutes (from about 22:25 to 23:06–23:10 server time), then came back, apparently a resync; inside the 300 s window, so nothing was refused, but every run seemed to arrive about 75 s late (T-107, T-117).
 
 **Impact (M) / Likelihood (low).** A drifting clock turns every POST into `HTTP 401 … (check vps.ingest_secret and that this server's clock is within 300 s)`; batches queue in the outbox (nothing lost, but R-20 grows and digibuild shows the bot as late). Ticketing is unaffected. **Mitigation.** Verify `w32tm /query /status` and the NTP source (T-107).
 
@@ -277,6 +277,6 @@ Related: [08 – Crosscutting Concepts](08-crosscutting-concepts.md) · [10 – 
 | Restore the MainManager integration | R-18, R-01, R-14, R-17 | coded (v2.0.0/v2.0.1); deploy T-103 |
 | Rotate/move secrets | R-03 | done (rotated 2026-09-29, `secrets.json`); history: T-102 |
 | Port the Indeklima bot | R-22 | T-105 (needs the live folder) |
-| Ship to digibuild ([ADR 0016](../adr/0016-cts-server-vs-vps-responsibility-split.md), [ADR 0020](../adr/0020-hmac-ingest-to-digibuild.md)) | R-13, R-12 (history off-site), R-05 (query-ability) — adds R-19, R-20 | coded; deploy T-092 after the digibuild worker is live |
+| Ship to digibuild ([ADR 0016](../adr/0016-cts-server-vs-vps-responsibility-split.md), [ADR 0020](../adr/0020-hmac-ingest-to-digibuild.md)) | R-13, R-12 (history off-site), R-05 (query-ability) — adds R-19, R-20 | live since 2026-09-30 (T-115) |
 | SQL storage / web app / friendly names (digibuild, [ADR 0022](../adr/0022-cts-side-only-repo-web-app-in-digibuild.md)) | R-02 (via the catalogue), R-04 (pseudonymised pages), R-15 | being built in digibuild |
 | Code hygiene | R-06, R-07, R-16, R-21, R-20 | T-024, T-069, T-027 (snapshot-size guard), T-106, T-108 |

@@ -40,13 +40,14 @@ LABEL_OK = {"OPR1 (Operator One FM)", "SYSTEM (User Profile SYSTEM)",
             "LOGIN (Name Organisation)", "INITIALS (Name Organisation)"}   # placeholders
 # Owner's own label: allowed until the owner decides (see the scope-guard audit of 2026-09-29).
 LABEL_OK_HASHES = {"cfd466044c0110f70851257b16ff2bd5729601bb146857ddc6a49bc388fd60c4"}
-# SHA-256 of lower-cased words that must never appear (internal hostnames, third-party
-# operator names). Only hashes are stored, so this file publishes nothing.
+# SHA-256 of lower-cased words that must never appear (internal hostnames, VPS unit names,
+# third-party operator names). Only hashes are stored, so this file publishes nothing.
 DENY_HASHES = {
     "1c84dbee3d356670db21e045b05c431d414ce019b5984854d28161f6b2aee40b",
     "e99b6632e6e8689e3c8fe63072493ad7130921c5d51593c4fae2af12899b7c37",
     "eae8e3404182477f008479b38a6629ee86b23cefe2c418c5dc5c2f0d02af5475",
     "f6c4b2f6ffe3b021b378c40abc75cfd32cac97903cecd60c6c3f363c4fb70f64",
+    "dbe6912802c4b89db79fd38375d794d7ac09b8420dcf287d6bb05fae3d7d3d53",
 }
 FORBIDDEN_FILES = re.compile(
     r"(^|/)(\.claude/|logs/|csv/|bin/|obj/)|\.(log|alr|sqlite|db|dll|exe|pdb)$|_state\.json$|(^|/)outbox[^/]*$")
@@ -150,9 +151,11 @@ class RepoScopeTests(unittest.TestCase):
                     continue
                 bad.append(f"{p}: operator-style label")
             if not is_guard:
-                for w in set(re.findall(r"[A-Za-z0-9\u00c6\u00d8\u00c5\u00e6\u00f8\u00e5]{3,}", text)):
+                words = set(re.findall(r"[A-Za-z0-9\u00c6\u00d8\u00c5\u00e6\u00f8\u00e5]{3,}", text))
+                words |= set(re.findall(r"[A-Za-z0-9][A-Za-z0-9_-]{2,}", text))  # hyphenated names too
+                for w in words:
                     if hashlib.sha256(w.lower().encode()).hexdigest() in DENY_HASHES:
-                        bad.append(f"{p}: a denied word (internal hostname or third-party name)")
+                        bad.append(f"{p}: a denied word (internal hostname, VPS unit or third-party name)")
         self.assertEqual(sorted(set(bad)), [])
 
     def test_every_runtime_file_is_git_ignored(self):

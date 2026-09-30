@@ -82,7 +82,7 @@ graph LR
 | ID | Scenario | Target | Status | Evidence |
 |---|---|---|---|---|
 | T1 | An operator asks "what happened to alarm X on 12 June?" | Every transition of every alarm is recorded with a timestamp, independent of the incident pipeline. | **met** (all priorities) | `csv/` per-directory rows (`run_csv_logging()`, `:515`); from shipping on, the same events in digibuild. |
-| T2 | An operator asks "which incident belongs to alarm X?" | `vista_id ↔ incident_id` is recoverable at any age. | **partly** → met with T-092 | On the CTS server only while the state entry exists (RESOLVED pruned after 30 days). Every batch carries all links and the history was imported, so digibuild keeps them permanently once shipping is live. |
+| T2 | An operator asks "which incident belongs to alarm X?" | `vista_id ↔ incident_id` is recoverable at any age. | **met** (2026-09-30) | On the CTS server only while the state entry exists (RESOLVED pruned after 30 days). Every batch carries all links and the history was imported, so digibuild keeps them permanently: shipping is live since 2026-09-30 (T-115), and the 28–30 Sep gap was backfilled (T-116). |
 | T3 | Reconstruct the full alarm picture at a given minute. | Possible from logs. | **met** but expensive | The status table is logged every run (`:882`); only *kept* alarms appear. The shipped snapshot (all priorities) makes this a query in digibuild. |
 | T4 | Query "how many times did `320-01-07930-0101_AL` alarm this year?" | Answerable without ad-hoc scripts. | **n/a (digibuild)** | The recurring-alarm report of the digibuild sub-project ([ADR 0015](../adr/0015-sql-storage-for-alarm-history.md), [ADR 0022](../adr/0022-cts-side-only-repo-web-app-in-digibuild.md)). |
 
@@ -109,7 +109,7 @@ graph LR
 
 | ID | Scenario | Target | Status | Evidence |
 |---|---|---|---|---|
-| O1 | The bot has been failing (exit 2, or 100 % API errors) for 6 hours. | Someone is notified. | **partly** → met with T-092 | On the CTS server: errors only in the daily log. Once shipping is live, digibuild flags `late` (> 15 min without a run) and its watchdog alerts; API errors travel in each run's `errors[]` ([R-13](11-risks-and-technical-debt.md#r-13-no-alerting-when-the-bot-itself-fails)). |
+| O1 | The bot has been failing (exit 2, or 100 % API errors) for 6 hours. | Someone is notified. | **partly** → met with T-065 | On the CTS server: errors only in the daily log. Since 2026-09-30 every run reaches digibuild (T-115), which is designed to flag `late` (> 15 min without a run) and its watchdog alerts; API errors travel in each run's `errors[]` ([R-13](11-risks-and-technical-debt.md#r-13-no-alerting-when-the-bot-itself-fails)). |
 | O2 | Run for two years. | Disk usage stays bounded. | **not met** | Logs never rotated (~4 MB/day); CSV files permanent; outbox unbounded. [R-05](11-risks-and-technical-debt.md#r-05-no-log-rotation-and-no-csvstate-retention-strategy), [R-20](11-risks-and-technical-debt.md#r-20-unbounded-outbox-growth) |
 | O3 | Vista file is copied while MainManager is down. | The run finishes in under the 5-minute limit. | **met** (v2.0.0) | After the first 404 + failed probe no further MainManager call is made that run; non-404 failures cost one timeout per affected alarm; the shipper stops at `time_budget_seconds` (120). |
 | O4 | Verify a deployment on the live server. | Without side effects. | **met** (v2.0.1) | `--dry-run` writes nothing, checks the credentials, lists what would be sent, and probes the VPS. |
@@ -135,5 +135,5 @@ graph LR
 | Usability | 0 | 0 | 0 | 2 |
 
 v2 closes the permanent-error and security-hygiene gaps in code; they close in production with the v2.0.1
-deployment (T-103) and the shipper (T-092). What remains on the CTS side: retention (logs, outbox), the empty-file
+deployment (T-103, done) and the shipper (T-115, live since 2026-09-30). What remains on the CTS side: retention (logs, outbox), the empty-file
 guard, the empty `objects.csv`, and the operator names in the public history.

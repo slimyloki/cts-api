@@ -177,20 +177,20 @@ The `{e}` in `FAILED` messages is `str(exception)`; it may embed a URL with the 
 
 | Level | Message | Line | Meaning |
 |---|---|---|---|
-| WARNING | `VPS shipper disabled — bad "vps" config: {e}` | 456 | e.g. no scheme in `base_url`, obsolete `api_key_file` |
+| WARNING | `VPS shipper disabled — bad "vps" config: {e}` | 534 | e.g. no scheme in `base_url`, obsolete `api_key_file` |
 | INFO | `[DRY] Would ship {n} events to {base_url} (run {run_id}, {m} snapshot rows, {k} incidents)` | 463 | dry run |
-| INFO / WARNING | `[DRY] VPS ingest secret: present` / `[DRY] VPS ingest secret: MISSING — {reason}` | 469 / 471 | dry run; value never logged |
-| INFO | `[DRY] VPS reachability: GET {base_url}/api/cts-alarms/healthz -> {HTTP code \| unreachable (…)}` | 472 | dry run; answers "can the CTS server reach api.digibuild.dk" |
-| ERROR | `VPS: no ingest secret ({reason}) — run {run_id} queued, {n} batches waiting` | 382 | batch queued without a request |
-| INFO | `VPS: resent queued run {run_id} (HTTP 200)` | 401 | |
-| WARNING | `VPS: resend of queued run {run_id} failed (attempt {n}): {detail} — stopping` | 412 | no further request this run |
-| WARNING | `VPS: time budget exhausted — resend stopped` | 394 | |
-| WARNING | `VPS: run {run_id} queued without attempt (server unreachable this run)` | 421 | |
-| INFO | `VPS: shipped run {run_id} — {n} events, {m} snapshot rows, {k} incidents (HTTP 200)` | 427 | the normal case |
-| WARNING | `VPS: ship of run {run_id} failed: {detail} — queued` | 436 | `detail` for 401 ends `(check vps.ingest_secret and that this server's clock is within 300 s)` |
-| ERROR | `VPS: run {run_id} rejected as malformed — moved to dead table ({detail})` / `VPS: queued run {run_id} rejected as malformed …` | 431 / 403 | other 4xx |
-| INFO | `VPS: outbox has {q} queued, {d} dead batches ({path})` | 440 | when anything is waiting |
-| ERROR | `VPS shipper failed (non-fatal): {e}` | `main.py:1027` | unexpected shipper fault; never changes the exit code |
+| INFO / WARNING | `[DRY] VPS ingest secret: present` / `[DRY] VPS ingest secret: MISSING — {reason}` | 547 / 549 | dry run; value never logged |
+| INFO | `[DRY] VPS reachability: GET {base_url}/api/cts-alarms/healthz -> {HTTP code \| unreachable (…)}` | 550 | dry run; answers "can the CTS server reach api.digibuild.dk" |
+| WARNING | `VPS: no ingest secret ({reason}) — run {run_id} queued, {n} batches waiting` | 457 | batch queued without a request |
+| INFO | `VPS: resent queued run {run_id} (HTTP 200)` | 476 | |
+| WARNING | `VPS: resend of queued run {run_id} failed (attempt {n}): {detail} — stopping` | 487 | no further request this run |
+| WARNING | `VPS: time budget exhausted — resend stopped` | 469 | |
+| WARNING | `VPS: run {run_id} queued without attempt (server unreachable this run)` | 496 | |
+| INFO | `VPS: shipped run {run_id} — {n} events, {m} snapshot rows, {k} incidents (HTTP 200)` | 502 | the normal case |
+| WARNING | `VPS: ship of run {run_id} failed: {detail} — queued` | 511 | `detail` for 401 ends `(check vps.ingest_secret and that this server's clock is within 300 s)` |
+| ERROR | `VPS: run {run_id} rejected as malformed — moved to dead table ({detail})` / `VPS: queued run {run_id} rejected as malformed …` | 506 / 478 | other 4xx |
+| INFO | `VPS: outbox has {q} queued, {d} dead batches ({path})` | 515 | when anything is waiting |
+| ERROR | `VPS shipper failed (non-fatal): {e}` | `main.py:1190` | unexpected shipper fault; never changes the exit code |
 
 ## Older wording in early logs
 

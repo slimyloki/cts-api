@@ -1,5 +1,9 @@
 # 2026-09-30: send the alarm bot's missing 44 hours to digibuild
 
+> **Done 2026-09-30, 23:25 server time.** The backfill sent 386 events: 384 inserted, 2 already there, 20 alarms
+> rebuilt. digibuild no longer shows any of the 147 as open. Running it again is safe, but it would only return
+> duplicates, so it is not needed.
+
 ## What it does, and why
 
 From 28 September 17:55 to 30 September 13:42, about 44 hours, the alarm bot kept running on this server, but its
@@ -110,6 +114,11 @@ digibuild before you answer y, or after a failure in the report.
 | `FAILED: No scheduled task runs the alarm bot's main.py ...` or `FAILED: More than one scheduled task runs the alarm bot: ...` | It could not tell which task runs the bot. | In Command Prompt (Admin) type `cd /d C:\cts-api\runbooks`, then `2026-09-30-cts-alarms-backfill.cmd -TaskPath \TacVistaMails -TaskName Alarm_Bot`. |
 | `FAILED: Start it with administrator rights: ...` | The administrator question was answered No. | Double-click it again and answer Yes. |
 | Any other `FAILED:` line, for example `FAILED: the report stopped with exit code ...` or `FAILED: unexpected error: ...` | Something the script did not expect. The lines above say what. | Tell Claude the line and the lines above it. |
+
+**Nothing more appears after the line `==> The report: ...`.** The report takes seconds. Look at the window's
+title bar: if it starts with **Select** (on a Danish Windows **Markér**), a click in the window has paused it. Press
+**Esc** once, not Enter or y, and the report and the question appear. If the title is normal, closing the window is
+safe: nothing has been sent.
 
 If batches had been accepted before a failure, the line above `FAILED:` says
 `batches 1-k (... events) were accepted before this one`. Running it again is safe: those events come back as
