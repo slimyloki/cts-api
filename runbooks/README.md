@@ -31,3 +31,4 @@ Three files per runbook, same stem, `<yyyy-mm-dd>-<short-name>`:
 | Runbook | Purpose | Status |
 |---|---|---|
 | [2026-09-29-internet-address](2026-09-29-internet-address.md) | Read-only: the CTS server's internet address (for digibuild's allow-list), whether `api.digibuild.dk` answers, and the clock difference | ready |
+| [2026-09-30-cts-alarms-backfill](2026-09-30-cts-alarms-backfill.md) | Sends the alarm bot's events of the 44-hour gap (2026-09-28 17:30:00 to 2026-09-30 13:42:10) to digibuild, where 147 alarms still show as open. Report first, then it asks; changes nothing on the server; safe to run twice | ready: run after `cts-alarms\update.cmd`, once the session says digibuild takes backfill batches |
