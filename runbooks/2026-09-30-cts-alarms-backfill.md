@@ -33,10 +33,10 @@ has are skipped. digibuild then rebuilds the alarms those events belong to.
 Run it after two things have happened:
 
 - you have double-clicked `cts-alarms\update.cmd` (step 1 below), which brings `backfill.py` and this runbook;
-- **the session has told you that the digibuild server is updated** to take backfill batches.
+- **Claude has told you that the digibuild server is updated** to take backfill batches.
 
 Running it too early does no harm. It stops at the first batch with `FAILED: the digibuild server does not accept
-backfill batches yet (HTTP 422). Nothing was changed.` Run it again once the session says digibuild is updated.
+backfill batches yet (HTTP 422). Nothing was changed.` Run it again once Claude says digibuild is updated.
 
 1. Double-click **`C:\cts-api\cts-alarms\update.cmd`** and answer **Yes** to the administrator question. Answer
    its own questions as usual, and wait for the line that starts with `==> Done.` (A plain `git pull` in
@@ -78,7 +78,7 @@ OK: backfill sent — N events, I inserted, D already there, R alarms rebuilt
 - **I inserted** are events digibuild did not have. **D already there** are events it had already.
 - **R alarms rebuilt** is how many alarms digibuild rebuilt from their events.
 
-Tell the session the `OK: backfill sent` line: it then checks the 147 open alarms on digibuild.
+Tell Claude the `OK: backfill sent` line: it then checks the 147 open alarms on digibuild.
 
 **A second run** is safe and ends with `OK: backfill sent — N events, 0 inserted, N already there, ...`. digibuild
 knows each event by its alarm, time and type, and skips the ones it has.
@@ -97,19 +97,19 @@ digibuild before you answer y, or after a failure in the report.
 
 | Last line | Meaning | What to do |
 |---|---|---|
-| `FAILED: the digibuild server does not accept backfill batches yet (HTTP 422). Nothing was changed. Run this again once the server is updated.` | It was run before digibuild was updated. | Wait until the session says digibuild is updated, then double-click it again. |
+| `FAILED: the digibuild server does not accept backfill batches yet (HTTP 422). Nothing was changed. Run this again once the server is updated.` | It was run before digibuild was updated. | Wait until Claude says digibuild is updated, then double-click it again. |
 | `FAILED: backfill.py is missing in C:\cts-api\cts-alarms -- double-click C:\cts-api\cts-alarms\update.cmd first` | The update that brings `backfill.py` has not reached this server. | Double-click `update.cmd`, then this again. |
 | `FAILED: sending is not ready: no ingest secret: ... Nothing was sent.` | `secrets.json` has no digibuild ingest secret. The line above it says how to set it. | In Command Prompt (Admin) type `cd /d C:\cts-api\cts-alarms`, then `install.cmd -IngestSecret`. Then run this again. |
-| `FAILED: sending is not ready: ...` with another reason | `config.json` has no working `vps` section. | Tell the session the line. |
-| `FAILED: N malformed rows in the window (listed above). Nothing was sent.` | Some CSV rows in the window cannot be read back. The `MALFORMED <file>.csv:<line>: <reason>` lines above name them (no alarm text is shown). | Tell the session those lines. |
-| `FAILED: batch k/B was refused: HTTP 401 (check vps.ingest_secret and that this server's clock is within 300 s). ...` | digibuild did not accept the signature: the ingest secret is wrong, or the clock is off. | Double-click `C:\cts-api\runbooks\2026-09-29-internet-address.cmd` to check the clock, and tell the session. |
+| `FAILED: sending is not ready: ...` with another reason | `config.json` has no working `vps` section. | Tell Claude the line. |
+| `FAILED: N malformed rows in the window (listed above). Nothing was sent.` | Some CSV rows in the window cannot be read back. The `MALFORMED <file>.csv:<line>: <reason>` lines above name them (no alarm text is shown). | Tell Claude those lines. |
+| `FAILED: batch k/B was refused: HTTP 401 (check vps.ingest_secret and that this server's clock is within 300 s). ...` | digibuild did not accept the signature: the ingest secret is wrong, or the clock is off. | Double-click `C:\cts-api\runbooks\2026-09-29-internet-address.cmd` to check the clock, and tell Claude. |
 | `FAILED: batch k/B was refused: HTTP 429 ...` | Too many requests. | Wait a few minutes and run it again. |
-| `FAILED: batch k/B was refused: HTTP 404 ...` or another code | The route or the request was refused. | Tell the session the line. |
+| `FAILED: batch k/B was refused: HTTP 404 ...` or another code | The route or the request was refused. | Tell Claude the line. |
 | `FAILED: batch k/B could not be sent: ..., 4 attempts. ...` | Network or digibuild trouble; each batch is tried four times. | Run it again later. |
-| `FAILED: batch k/B: the server received X of Y events. ...` | digibuild answered, but not as agreed. | Tell the session the line. |
+| `FAILED: batch k/B: the server received X of Y events. ...` | digibuild answered, but not as agreed. | Tell Claude the line. |
 | `FAILED: No scheduled task runs the alarm bot's main.py ...` or `FAILED: More than one scheduled task runs the alarm bot: ...` | It could not tell which task runs the bot. | In Command Prompt (Admin) type `cd /d C:\cts-api\runbooks`, then `2026-09-30-cts-alarms-backfill.cmd -TaskPath \TacVistaMails -TaskName Alarm_Bot`. |
 | `FAILED: Start it with administrator rights: ...` | The administrator question was answered No. | Double-click it again and answer Yes. |
-| Any other `FAILED:` line, for example `FAILED: the report stopped with exit code ...` or `FAILED: unexpected error: ...` | Something the script did not expect. The lines above say what. | Tell the session the line and the lines above it. |
+| Any other `FAILED:` line, for example `FAILED: the report stopped with exit code ...` or `FAILED: unexpected error: ...` | Something the script did not expect. The lines above say what. | Tell Claude the line and the lines above it. |
 
 If batches had been accepted before a failure, the line above `FAILED:` says
 `batches 1-k (... events) were accepted before this one`. Running it again is safe: those events come back as
@@ -117,4 +117,4 @@ If batches had been accepted before a failure, the line above `FAILED:` says
 
 **How to undo.** There is nothing to undo on this server, because nothing was changed here. What it sends to
 digibuild are the bot's own events: the same ones the shipper would have sent live in those 44 hours. No script
-takes them back. If they ever have to go, that is done on the digibuild side (ask the session).
+takes them back. If they ever have to go, that is done on the digibuild side (ask Claude).
