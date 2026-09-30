@@ -140,7 +140,7 @@ docs/
 | [state-files.md](reference/state-files.md) | `alarms_state.json`, `csv_state.json`, `mm_token.json` and `outbox.sqlite`: schemas, statuses, pruning. |
 | [log-format.md](reference/log-format.md) | `logs/YYYY-MM-DD.log` line format, message catalogue, per-run status table, volumes. |
 | [config-reference.md](reference/config-reference.md) | Every `config.json` and `secrets.json` key, CLI flags, exit codes (credential values omitted). |
-| [shipper.md](reference/shipper.md) | The optional `vps` config section, HMAC signing, `IngestBatch`, outbox, failure behaviour, install steps. |
+| [shipper.md](reference/shipper.md) | The optional `vps` config section, HMAC signing, `IngestBatch`, outbox, failure behaviour, install steps, and `backfill.py` for events that were never shipped. |
 | [mainmanager-api.md](reference/mainmanager-api.md) | Token and the v3 incident endpoints as used by `MMClient`; write model, defaults, errors; the v1 history. |
 | [install-script.md](reference/install-script.md) | `install.ps1`: first install and `-Download` updates on the CTS server, what each step checks, switches, rollback. |
 

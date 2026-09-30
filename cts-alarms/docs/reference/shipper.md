@@ -186,6 +186,67 @@ answers `200` ([TODO T-092](../TODO.md)). Since v2.2.0 the switch-on is [TODO T-
 Rolling back: delete the `"vps"` block (or set `"enabled": false`) — `shipper.py` may stay in place;
 or delete `shipper.py` — `main.py` imports it as optional.
 
+## Backfill: events that were never shipped (`backfill.py`)
+
+Every event is also in the CSV audit trail ([csv-audit-format.md](csv-audit-format.md)), so the events of runs
+whose batch never reached digibuild can be sent later. That happened once: from 2026-09-28 17:55:05 to
+2026-09-30 13:42:10 the bot ran before the shipper was switched on, and alarms cleared in that window stayed
+open on digibuild. `backfill.py` sends such a window. `main.py` does not import it; the scheduled run is not
+affected.
+
+```
+python backfill.py --from "2026-09-28 17:30:00" --to "2026-09-30 13:42:10"          (report only)
+python backfill.py --from "2026-09-28 17:30:00" --to "2026-09-30 13:42:10" --send   (send)
+```
+
+Both ends are included and are server local time without an offset (read with `datetime.astimezone()`,
+no `zoneinfo`). `--config` works as for `main.py`: `csv\`, `logs\` and `secrets.json` are found next to
+`config.json`.
+
+**Without `--send`** it only reports, and writes no file (not even `__pycache__`) and makes no network call.
+It prints counts, never an alarm text, a user name, the secret or a URL query: CSV files scanned; rows in
+the window; duplicates dropped (the same `(vista_id, ts, event)` twice in one file); malformed rows; events to
+send; distinct alarms and how many were RESOLVED in the window; runs (one CSV timestamp each); events by type
+and by day; the batches it would send; and whether `--send` would find the `vps` section and the secret.
+It also cross-checks the daily logs: each run should have a `CSV audit: logged N events` line within 120 s
+of its CSV time, with N equal to its rows. It prints how many runs match, how many do not and how many
+have no such line, the first five of each, log lines with no CSV rows, and every
+`CSV audit logging failed` line in the window as a WARNING.
+
+A row in the window that is not what `run_csv_logging()` writes (not 17 fields, a number column that is not
+a number, an unknown event, a `status_label` that does not fit the row) is listed as
+`MALFORMED <file>.csv:<line>: <reason>` and the run ends with `FAILED: … Nothing was sent.` (exit 1). A row
+whose time cannot be read counts as in the window unless the rows around it place it outside.
+
+**With `--send`** it posts the batches after the report:
+
+| Item | Value |
+|---|---|
+| Route, signature, secret | the live shipper's: `load_shipper_config()`, `read_ingest_secret()`, `ingest_url`, `_post()` with `signed_headers()`; a fresh `X-Timestamp` and `X-Nonce` for every attempt. The request timeout is at least 60 s. |
+| Body | `{"schema_version": 1, "source": "cts-alarm-backfill", "run": null, "events": [...], "snapshot": null, "incidents": []}` |
+| Events | the 15 fields the live shipper sends, rebuilt as the live path builds them (`main.event_record()`, then `event_row()`): `ts` is the row's time as ISO 8601 with the local offset; synthetic NORMAL/RESOLVED rows (empty `ack_flag`) have `null` in `user` … `count`. |
+| Batches | oldest first, at most 500 events. The rows of one run are never split (one run of more than 500 goes alone). Within a run the file order is kept, so a vanished alarm's NORMAL stays before its RESOLVED. |
+| Answer | `200` with `events_received`, `events_inserted`, `events_duplicate` and `instances_rebuilt` (0 if absent). `names` is ignored: `names.json` is never written. |
+| Writes | nothing: no outbox, no `names.json`, no state or CSV file. |
+
+It prints one line per batch (`batch k/n: E events, I inserted, D already there, R alarms rebuilt`), the
+totals, and ends with `OK: backfill sent — N events, I inserted, D already there, R alarms rebuilt` (exit 0).
+digibuild drops events it already has, keyed `(vista_id, ts, event)`, so running it again is safe: the events
+come back as already there.
+
+| Last line | Meaning |
+|---|---|
+| `FAILED: the digibuild server does not accept backfill batches yet (HTTP 422). Nothing was changed. …` | Any 422 stops at once: the server predates backfill batches. Run it again after the digibuild update. |
+| `FAILED: batch k/n was refused: HTTP 401 (…)` (or 403, 404, 429) | Not retried; as for the shipper (secret, clock, route). |
+| `FAILED: batch k/n could not be sent: … 4 attempts.` | A network error or 5xx, retried three times (2, 5, 10 s). |
+| `FAILED: batch k/n: the server received X of Y events. …` | An answer that does not fit the contract; the batch may be stored. |
+
+After a failure, the batches before it are named as accepted; running it again sends them again as duplicates.
+
+Two things the CSV cannot give back: a `;` in an alarm text was written as `,` (`csv_row()`), so it is sent
+as `,`; and in the one hour when the clocks go back (late October) a CSV time is ambiguous and is read as
+summer time.
+
 ## Tests
 
 `python -m pytest -q tests` (`tests/test_shipper.py`, `tests/test_main_events.py`): batch shape,
@@ -194,3 +255,9 @@ every request (resends carry fresh nonces), missing secret queues without a requ
 BOM-tolerant secrets file, outbox/resend/dead-letter, 401/403/404/429/5xx retried, secret never in
 log records or outbox rows, dry run probes healthz and touches no outbox, end-to-end `--dry-run` with
 and without a `"vps"` section.
+
+`tests/test_backfill.py` covers `backfill.py`: rows written by `run_csv_logging()` come back as exactly the
+live events, both window ends are included, malformed rows fail with file and line, duplicates are dropped,
+batches keep the cap and whole runs, NORMAL stays before RESOLVED, the log cross-check, a report that writes
+nothing (not even bytecode) and calls nothing, and sending: every attempt freshly signed, 422 stops at once,
+5xx retried, other 4xx stop, no outbox and no `names.json`.

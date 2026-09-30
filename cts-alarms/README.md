@@ -15,6 +15,7 @@ imported on 2026-09-29 from `slimyloki/cts-alarms` at commit `907d91f`, without 
 |---|---|
 | `main.py` | The bot (v2.2.0). Run by Task Scheduler every 5 minutes. |
 | `shipper.py` | Optional: posts each run to `api.digibuild.dk`; SQLite outbox on failure. Off without a `"vps"` section in `config.json`. |
+| `backfill.py` | One-off, run by hand: sends the CSV audit events of a past time window that the shipper never sent (report first, `--send` to send). Not part of the scheduled run. See [shipper.md](docs/reference/shipper.md#backfill-events-that-were-never-shipped-backfillpy). |
 | `config.json` | Paths, thresholds, MainManager URL and incident defaults. **No credentials.** |
 | `secrets.example.json` | Template for `secrets.json`, which lives only on the CTS server. |
 | `objects.csv` | Maps an alarm object to a MainManager MainID (empty today, so the fallback MainID is used). |
@@ -37,7 +38,8 @@ python -m pytest -q tests          # everything, including the shipper and event
 ```
 
 The bot itself needs only Python 3.13 and `requests`. The pytest-style files (`test_shipper.py`,
-`test_main_events.py`) also need `pytest`, which a developer machine needs but the CTS server does not.
+`test_main_events.py`, `test_backfill.py`) also need `pytest`, which a developer machine needs but the CTS
+server does not.
 
 ## Deploy
 
